@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+
 import argparse
 import os
 import re
@@ -8,6 +9,14 @@ import tempfile
 import time
 from dataclasses import dataclass
 from typing import Dict, List, Optional, Set, Tuple
+
+__all__ = [
+    "SimpleLogger",
+    "MarkerReport",
+    "FileProcessResult",
+    "ScanStats",
+    "UnicodeMarkerDetector",
+]
 
 # --- Configuration ---
 VERSION = "1.0.0"
@@ -143,7 +152,7 @@ class SimpleLogger:
     """Simplified logger with color support and minimal configuration."""
 
     # ANSI color codes
-    COLORS = {
+    COLORS: Dict[str, str] = {
         'red': "\x1b[31;1m",
         'green': "\x1b[32;1m",
         'yellow': "\x1b[33;1m",
@@ -159,16 +168,23 @@ class SimpleLogger:
     WARNING = 30
     ERROR = 40
 
-    def __init__(self, level=INFO, use_colors=True, log_file=None):
+    def __init__(
+        self,
+        level: int = INFO,
+        use_colors: bool | None = None,
+        log_file: Optional[str] = None,
+    ) -> None:
         self.level = level
-        self.use_colors = use_colors and sys.stdout.isatty()
-        self.log_file = log_file
-        self.file_handler = None
+        self.use_colors = (
+            sys.stdout.isatty() and os.environ.get("NO_COLOR") is None
+            if use_colors is None
+            else bool(use_colors)
+        )
+        self.file_handler = (
+            open(log_file, "w", encoding="utf-8") if log_file else None
+        )
 
-        if log_file:
-            self.file_handler = open(log_file, 'w', encoding='utf-8')
-
-    def _log(self, level, msg, *args, color=None):
+    def _log(self, level: int, msg: str, *args, color: Optional[str] = None) -> None:
         """Internal logging method."""
         if level < self.level:
             return
@@ -188,67 +204,51 @@ class SimpleLogger:
         if self.file_handler:
             # Strip ANSI color codes for file output
             clean_msg = re.sub(r'\x1b\[[0-9;]*m', '', msg)
-            self.file_handler.write(f"{clean_msg}\n")
+            print(clean_msg, file=self.file_handler)
             self.file_handler.flush()
 
-    def debug(self, msg, *args):
-        """Log a debug message."""
-        self._log(self.DEBUG, msg, *args, color='cyan')
+    def debug(self, msg: str, *args):
+        self._log(self.DEBUG, msg, *args, color="cyan")
 
-    def info(self, msg, *args):
-        """Log an info message."""
+    def info(self, msg: str, *args):
         self._log(self.INFO, msg, *args)
 
-    def warning(self, msg, *args):
-        """Log a warning message."""
-        self._log(self.WARNING, msg, *args, color='yellow')
+    def warning(self, msg: str, *args):
+        self._log(self.WARNING, msg, *args, color="yellow")
 
-    def error(self, msg, *args):
-        """Log an error message."""
-        self._log(self.ERROR, msg, *args, color='red')
+    def error(self, msg: str, *args):
+        self._log(self.ERROR, msg, *args, color="red")
 
     # Color convenience methods
-    def red(self, msg):
-        """Return text colored in red (if colors enabled)."""
-        if not self.use_colors:
-            return msg
-        return f"{self.COLORS['red']}{msg}{self.COLORS['reset']}"
+    def red(self, s: str) -> str:
+        return self._colorize("red", s)
 
-    def green(self, msg):
-        """Return text colored in green (if colors enabled)."""
-        if not self.use_colors:
-            return msg
-        return f"{self.COLORS['green']}{msg}{self.COLORS['reset']}"
+    def green(self, s: str) -> str:
+        return self._colorize("green", s)
 
-    def yellow(self, msg):
-        """Return text colored in yellow (if colors enabled)."""
-        if not self.use_colors:
-            return msg
-        return f"{self.COLORS['yellow']}{msg}{self.COLORS['reset']}"
+    def yellow(self, s: str) -> str:
+        return self._colorize("yellow", s)
 
-    def blue(self, msg):
-        """Return text colored in blue (if colors enabled)."""
-        if not self.use_colors:
-            return msg
-        return f"{self.COLORS['blue']}{msg}{self.COLORS['reset']}"
+    def blue(self, s: str) -> str:
+        return self._colorize("blue", s)
 
-    def magenta(self, msg):
-        """Return text colored in magenta (if colors enabled)."""
-        if not self.use_colors:
-            return msg
-        return f"{self.COLORS['magenta']}{msg}{self.COLORS['reset']}"
+    def magenta(self, s: str) -> str:
+        return self._colorize("magenta", s)
 
-    def cyan(self, msg):
-        """Return text colored in cyan (if colors enabled)."""
-        if not self.use_colors:
-            return msg
-        return f"{self.COLORS['cyan']}{msg}{self.COLORS['reset']}"
+    def cyan(self, s: str) -> str:
+        return self._colorize("cyan", s)
 
     def close(self):
         """Close file handler if it exists."""
         if self.file_handler:
             self.file_handler.close()
             self.file_handler = None
+
+    # internal ----------------------------------------------------------
+    def _colorize(self, color: str, s: str) -> str:
+        return (
+            f"{self.COLORS[color]}{s}{self.COLORS['reset']}" if self.use_colors else s
+        )
 
 # Global logger instance, will be initialized in main()
 log = None
@@ -282,12 +282,12 @@ class ScanStats:
     files_with_markers: int = 0
     total_markers_detected: int = 0
     total_markers_processed: int = 0
-    start_time: float = 0
-    end_time: float = 0
+    start_time: float = 0.0
+    end_time: float = 0.0
 
     @property
     def elapsed_time(self) -> float:
-        return self.end_time - self.start_time if self.end_time > 0 else 0
+        return self.end_time - self.start_time if self.end_time else 0.0
 
     def update_from_result(self, result: FileProcessResult) -> None:
         self.files_processed += 1
@@ -296,411 +296,402 @@ class ScanStats:
         self.total_markers_detected += result.detected_markers
         self.total_markers_processed += result.processed_markers
 
-# --- File Processing Functions ---
-def is_likely_text_file(filepath: str, chunk_size: int = 4096) -> bool:
-    try:
-        with open(filepath, 'rb') as f:
-            chunk = f.read(chunk_size)
-        if b'\x00' in chunk: # Null byte usually means binary
+
+# ---------------------------------------------------------------------------
+#  Core class
+# ---------------------------------------------------------------------------
+class UnicodeMarkerDetector:
+    """Detect and optionally clean hidden/typographic/IVS markers."""
+
+    # Expose version via class attribute for convenience
+    VERSION = VERSION
+
+    # ------------------------------------------------------------------
+    def __init__(
+        self,
+        *,
+        clean_file: bool = False,
+        check_typographic: bool = False,
+        check_ivs: bool = False,
+        user_excluded_chars: Optional[Set[str]] = None,
+        report_mode: str = "normal",
+        logger: Optional[SimpleLogger] = None,
+    ) -> None:
+        self.clean_file = clean_file
+        self.check_typographic = check_typographic
+        self.check_ivs = check_ivs
+        self.user_excluded_chars: Set[str] = set(user_excluded_chars or [])
+        self.report_mode = report_mode  # normal | quiet | verbose
+        self.log = logger or SimpleLogger()
+        self._results: Dict[str, FileProcessResult] = {}
+
+    # ------------------------------------------------------------------
+    #  Low-level helpers
+    # ------------------------------------------------------------------
+    @staticmethod
+    def _is_likely_text_file(path: str, chunk_size: int = 4096) -> bool:
+        """Heuristic test: null‑byte == binary; else assume text."""
+        try:
+            with open(path, 'rb') as f:
+                chunk = f.read(chunk_size)
+            if b'\x00' in chunk: # Null byte usually means binary
+                return False
+            # Try to decode a chunk as UTF-8. If it fails, it might be another encoding,
+            # but for this basic check, we're primarily interested in avoiding true binary files.
+            try:
+                chunk.decode('utf-8', errors='strict')
+            except UnicodeDecodeError:
+                # Could be another text encoding, or binary that happens to not have nulls.
+                # For this simple check, we'll lean towards 'text' if no nulls.
+                pass # Potentially still text, just not UTF-8
+            return True
+        except (IOError, PermissionError):
             return False
-        # Try to decode a chunk as UTF-8. If it fails, it might be another encoding,
-        # but for this basic check, we're primarily interested in avoiding true binary files.
-        try:
-            chunk.decode('utf-8', errors='strict')
-        except UnicodeDecodeError:
-            # Could be another text encoding, or binary that happens to not have nulls.
-            # For this simple check, we'll lean towards 'text' if no nulls.
-            pass # Potentially still text, just not UTF-8
-        return True
-    except (IOError, PermissionError):
-        return False
 
-def detect_file_encoding(filepath: str, fallback_encoding: str = 'utf-8') -> str:
-    """
-    Attempt to detect the encoding of a file.
-
-    Args:
-        filepath: Path to the file
-        fallback_encoding: Encoding to use if detection fails
-
-    Returns:
-        Detected encoding or fallback
-    """
-    encodings_to_try = ['utf-8', 'latin-1', 'cp1252', sys.getdefaultencoding()]
-
-    for encoding in encodings_to_try:
-        try:
-            with open(filepath, 'r', encoding=encoding) as f:
-                f.read(1024)  # Read a chunk to test encoding
-                log.debug("Detected encoding for %s: %s", filepath, encoding)
-                return encoding
-        except UnicodeDecodeError:
-            continue
-
-    log.debug("Could not detect encoding for %s, using fallback: %s", filepath, fallback_encoding)
-    return fallback_encoding
-
-def process_line(
-    line_text: str,
-    line_num: int,
-    clean_file: bool,
-    check_typographic: bool,
-    check_ivs: bool,
-    user_excluded_chars: Set[str],
-) -> Tuple[str, List[MarkerReport], bool]:
-    """
-    Process a single line of text, detecting and optionally replacing markers.
-
-    Args:
-        line_text: The line to process
-        line_num: Line number (for reporting)
-        clean_file: Whether to clean/replace markers
-        check_typographic: Whether to check for typographic markers
-        check_ivs: Whether to check for ideographic variation selectors
-        user_excluded_chars: Set of characters to exclude from processing
-
-    Returns:
-        Tuple of (processed_line, marker_reports, line_changed)
-    """
-    processed_line_chars = list(line_text)
-    reports: List[MarkerReport] = []
-    line_changed = False
-
-    # Process characters in the line
-    for char_idx, original_char in enumerate(line_text):
-        if original_char in user_excluded_chars:
-            continue
-
-        char_to_write = original_char
-        report = None
-
-        # Check for hidden markers
-        if original_char in MARKER_CHARS_HIDDEN:
-            is_bom = (line_num == 1 and char_idx == 0 and original_char == '\uFEFF')
-            desc = HIDDEN_MARKERS[original_char]
-
-            if not (is_bom and not clean_file):
-                if clean_file:
-                    action = "Removed" if not is_bom else "Processed (BOM)"
-                    report = MarkerReport(char_idx, original_char, desc, "Hidden", action)
-                    char_to_write = ""
-                    line_changed = True
-                else:
-                    report = MarkerReport(char_idx, original_char, desc, "Hidden", "Detected")
-
-        # Check for ideographic variation selectors
-        elif check_ivs and original_char in MARKER_CHARS_IDEOGRAPHIC_VS:
-            desc = IDEOGRAPHIC_VS_MARKERS[original_char]
-            if clean_file:
-                report = MarkerReport(char_idx, original_char, desc, "IdeographicVS", "Removed")
-                char_to_write = ""
-                line_changed = True
-            else:
-                report = MarkerReport(char_idx, original_char, desc, "IdeographicVS", "Detected")
-
-        # Check for typographic markers
-        elif check_typographic and original_char in MARKER_CHARS_TYPOGRAPHIC:
-            desc = TYPOGRAPHIC_MARKERS[original_char]
-            if clean_file and original_char in TYPOGRAPHIC_REPLACEMENTS:
-                repl = TYPOGRAPHIC_REPLACEMENTS[original_char]
-                if repl != original_char:
-                    report = MarkerReport(char_idx, original_char, desc, "Typographic", "Replaced", repl)
-                    char_to_write = repl
-                    line_changed = True
-                else:
-                    report = MarkerReport(char_idx, original_char, desc, "Typographic", "Detected (Rule: no change)")
-            else:
-                report = MarkerReport(char_idx, original_char, desc, "Typographic", "Detected")
-
-        if report:
-            reports.append(report)
-
-        processed_line_chars[char_idx] = char_to_write
-
-    processed_line = "".join(processed_line_chars)
-    return processed_line, reports, line_changed
-
-def process_file(
-    filepath: str,
-    clean_file: bool,
-    check_typographic: bool,
-    check_ivs: bool,
-    user_excluded_chars: Set[str],
-    report_mode: str = "normal",
-) -> FileProcessResult:
-    """
-    Process a file, detecting and optionally cleaning markers.
-
-    Args:
-        filepath: Path to the file
-        clean_file: Whether to clean markers
-        check_typographic: Whether to check for typographic markers
-        check_ivs: Whether to check for ideographic variation selectors
-        user_excluded_chars: Set of characters to exclude from processing
-        report_mode: Reporting mode (normal, quiet, or verbose)
-
-    Returns:
-        FileProcessResult object with processing results
-    """
-    file_had_marker_or_change = False
-    content_changed = False
-    temp_file_path = None
-    output_f = None
-    detected_count = 0
-    processed_count = 0
-
-    try:
-        # Determine file encoding
-        encoding = detect_file_encoding(filepath)
-
-        # Create temporary file if cleaning
-        if clean_file:
-            file_dir = os.path.dirname(filepath) or '.'
+    def _detect_file_encoding(self, path: str, fallback: str = 'utf-8') -> str:
+        """Attempt to detect the encoding of a file."""
+        for enc in ['utf-8', 'latin-1', 'cp1252', sys.getdefaultencoding()]:
             try:
-                output_temp_f_obj = tempfile.NamedTemporaryFile(
-                    mode='w',
-                    encoding='utf-8',
-                    dir=file_dir,
-                    delete=False,
-                    prefix=f"tmp_{os.path.basename(filepath)}_"
+                with open(path, 'r', encoding=enc) as f:
+                    f.read(1024)  # Read a chunk to test encoding
+                    self.log.debug("Detected encoding for %s: %s", path, enc)
+                    return enc
+            except UnicodeDecodeError:
+                continue
+        self.log.debug("Could not detect encoding for %s, using fallback: %s", path, fallback)
+        return fallback
+
+    # ------------------------------------------------------------------
+    def _process_line(
+        self,
+        text: str,
+        line_num: int,
+    ) -> Tuple[str, List[MarkerReport], bool]:
+        """Scan one line; return replaced line, list of marker reports, and flag."""
+        processed_chars: List[str] = list(text)
+        reports: List[MarkerReport] = []
+        changed = False
+
+        for idx, ch in enumerate(text):
+            if ch in self.user_excluded_chars:
+                continue
+            replacement: Optional[str] = None
+            report: Optional[MarkerReport] = None
+
+            # Check for hidden markers
+            if ch in MARKER_CHARS_HIDDEN:
+                is_bom = line_num == 1 and idx == 0 and ch == '\uFEFF'
+                desc = HIDDEN_MARKERS[ch]
+                if not (is_bom and not self.clean_file):
+                    action = "Processed (BOM)" if is_bom and self.clean_file else (
+                        "Removed" if self.clean_file else "Detected"
+                    )
+                    replacement = "" if self.clean_file else None
+                    changed |= bool(replacement == "")
+                    report = MarkerReport(idx, ch, desc, "Hidden", action)
+
+            # Check for ideographic variation selectors
+            elif self.check_ivs and ch in MARKER_CHARS_IDEOGRAPHIC_VS:
+                desc = IDEOGRAPHIC_VS_MARKERS[ch]
+                action = "Removed" if self.clean_file else "Detected"
+                replacement = "" if self.clean_file else None
+                changed |= bool(replacement == "")
+                report = MarkerReport(idx, ch, desc, "IdeographicVS", action)
+
+            # Check for typographic markers
+            elif self.check_typographic and ch in MARKER_CHARS_TYPOGRAPHIC:
+                desc = TYPOGRAPHIC_MARKERS[ch]
+                if self.clean_file and ch in TYPOGRAPHIC_REPLACEMENTS:
+                    replacement = TYPOGRAPHIC_REPLACEMENTS[ch]
+                    action = "Replaced" if replacement != ch else "Detected (Rule: no change)"
+                    changed |= replacement != ch
+                else:
+                    action = "Detected"
+                report = MarkerReport(idx, ch, desc, "Typographic", action, replacement)
+
+            if report:
+                reports.append(report)
+                processed_chars[idx] = replacement if replacement is not None else ch
+
+        return "".join(processed_chars), reports, changed
+
+    # ------------------------------------------------------------------
+    def _process_file(self, filepath: str) -> FileProcessResult:
+        """Process a file, detecting and optionally cleaning markers."""
+        detected = processed = 0
+        temp_path: Optional[str] = None
+        content_changed = False
+        had_marker = False
+
+        try:
+            encoding = self._detect_file_encoding(filepath)
+            if self.clean_file:
+                try:
+                    temp_obj = tempfile.NamedTemporaryFile(
+                        mode='w',
+                        encoding='utf-8',
+                        delete=False,
+                        dir=os.path.dirname(filepath) or ".",
+                        prefix=f"tmp_{os.path.basename(filepath)}_",
+                    )
+                    temp_path = temp_obj.name
+                    out_f = temp_obj
+                    self.log.debug("Created temporary file %s for %s", temp_path, filepath)
+                except Exception as e_temp_file:
+                    error_msg = f"Could not create temporary file: {e_temp_file}"
+                    self.log.error(error_msg)
+                    return FileProcessResult(filepath, False, None, error_msg)
+            else:
+                out_f = None
+
+            line_reports: Dict[int, Tuple[str, str, List[MarkerReport]]] = {}
+            with open(filepath, 'r', encoding=encoding, errors='replace') as in_f:
+                for i, line in enumerate(in_f, start=1):
+                    new_line, reports, changed = self._process_line(line, i)
+                    if reports:
+                        detected += len(reports)
+                        had_marker = True
+                        line_reports[i] = (line, new_line, reports)
+
+                    # Write to temp file if cleaning
+                    if out_f:
+                        out_f.write(new_line)
+                        if changed:
+                            content_changed = True
+                            processed += len(reports)
+
+            # Close the temp file if opened
+            if out_f:
+                out_f.close()
+
+            # Info / verbose reporting --------------------------------
+            if had_marker and self.report_mode != "quiet":
+                self._log_file_report(filepath, line_reports)
+
+            # If cleaning but no changes made, clean up temp file
+            if temp_path and not content_changed:
+                try:
+                    os.remove(temp_path)
+                    temp_path = None
+                    self.log.debug("Removed unused temporary file for %s as no changes were made", filepath)
+
+                except OSError as e_temp_rm:
+                    self.log.debug("Could not remove temporary file %s: %s", temp_path, e_temp_rm)
+
+            return FileProcessResult(
+                filepath=filepath,
+                had_marker_or_change=had_marker,
+                temp_file_path=temp_path if content_changed else None,
+                detected_markers=detected,
+                processed_markers=processed,
+            )
+
+        except FileNotFoundError:
+            self.log.error("File not found: %s", filepath)
+            return FileProcessResult(filepath, False, None, "File not found")
+        except PermissionError:
+            self.log.error("Permission denied for file: %s", filepath)
+            return FileProcessResult(filepath, False, None, "Permission denied")
+        except Exception as e_file_proc:
+            self.log.error("Unexpected error processing %s: %s", filepath, e_file_proc)
+            return FileProcessResult(filepath, False, None, f"Unexpected error: {e_file_proc}")
+
+    # ------------------------------------------------------------------
+    def _log_file_report(self, filepath: str, line_reports):
+        self.log.info("\n%s %s", self.log.blue("File:"), filepath)
+        for ln, (orig, mod, reps) in sorted(line_reports.items()):
+            self.log.info("  %s: Original: %s", self.log.cyan(f"L{ln}"), orig.rstrip())
+            if mod != orig:
+                self.log.info("  %s: %s %s", self.log.cyan(f"L{ln}"), self.log.cyan("Modified:"), mod.rstrip())
+            for rep in reps:
+                action_col = (
+                    self.log.red(rep.action)
+                    if rep.action in ("Removed", "Processed (BOM)")
+                    else self.log.magenta(rep.action)
+                    if rep.action == "Replaced"
+                    else self.log.yellow(rep.action)
                 )
-                temp_file_path = output_temp_f_obj.name
-                output_f = output_temp_f_obj
-                log.debug("Created temporary file %s for %s", temp_file_path, filepath)
-            except Exception as e:
-                error_msg = f"Could not create temporary file in {file_dir}: {e}"
-                log.error(error_msg)
-                return FileProcessResult(filepath, False, None, error_msg)
-
-        # Process the file line by line
-        line_reports = {}  # Store reports by line
-
-        with open(filepath, 'r', encoding=encoding, errors='replace') as input_f:
-            for i, line_text in enumerate(input_f):
-                line_num = i + 1
-
-                processed_line, reports, line_changed = process_line(
-                    line_text,
-                    line_num,
-                    clean_file,
-                    check_typographic,
-                    check_ivs,
-                    user_excluded_chars
+                type_col = (
+                    self.log.red(rep.marker_type)
+                    if rep.marker_type in ("Hidden", "IdeographicVS")
+                    else self.log.yellow(rep.marker_type)
+                )
+                details = f"'{repr(rep.original_char)}' ({rep.description})"
+                if rep.replacement:
+                    details += f" -> '{repr(rep.replacement)}'"
+                self.log.info(
+                    "    %s (%s): %s at %s",
+                    action_col,
+                    type_col,
+                    details,
+                    self.log.cyan(f"column {rep.char_idx + 1}"),
                 )
 
-                if reports:
-                    detected_count += len(reports)
-                    file_had_marker_or_change = True
-                    line_reports[line_num] = (line_text, processed_line, reports)
+    # --- File Discovery Functions ---
+    def find_files_to_process(
+        self,
+        file_path: Optional[str] = None,
+        dir_path: Optional[str] = None,
+        *,
+        recursive: bool = False,
+        ignored_dir_names: Optional[Set[str]] = None,
+        file_patterns: Optional[List[str]] = None,
+    ) -> List[str]:
+        """Return list of candidate text files honoring globs / recursion."""
+        files: List[str] = []
+        ignored_dir_names = ignored_dir_names or set()
 
-                # Write to temp file if cleaning
-                if output_f:
-                    output_f.write(processed_line)
-                    if line_changed:
-                        processed_count += len(reports)
-                        content_changed = True
+        # Compile file pattern regex if specified
+        pattern_re: Optional[re.Pattern[str]] = None
+        if file_patterns:
+            regex_parts = [p.replace(".", "\\.").replace("*", ".*").replace("?", ".") for p in file_patterns]
+            pattern_re = re.compile(f"^({'|'.join(regex_parts)})$")
+            self.log.debug("Using file pattern regex: %s", pattern_re.pattern)
 
-        # Close the temp file if opened
-        if output_f:
-            output_f.close()
+        # Single file mode -------------------------------------------
+        if file_path:
+            if not os.path.isfile(file_path):
+                self.log.error("File '%s' not found.", file_path)
+                return []
+            if self._is_likely_text_file(file_path):
+                files.append(file_path)
+                self.log.debug("Added file to process: %s", file_path)
+            else:
+                self.log.info("Skipping '%s' as it does not appear to be text.", file_path)
+            return files
 
-        # Log report if markers were found
-        if file_had_marker_or_change and report_mode != "quiet":
-            log.info("\n%s %s", log.blue("File:"), filepath)
+        # Directory mode ---------------------------------------------
+        if dir_path:
+            if not os.path.isdir(dir_path):
+                self.log.error("Directory '%s' not found.", dir_path)
+                return []
+            self.log.debug("Processing directory: %s (recursive=%s)", dir_path, recursive)
+            walker = os.walk(dir_path) if recursive else [(dir_path, [], os.listdir(dir_path))]
+            for root, dirs, names in walker:
+                # prune ignored dirs when walking recursively
+                if recursive:
+                    dirs[:] = [d for d in dirs if d not in ignored_dir_names]
+                for name in names:
+                    if pattern_re and not pattern_re.match(name):
+                        continue
+                    path = os.path.join(root, name)
+                    if os.path.isfile(path) and self._is_likely_text_file(path):
+                        files.append(path)
+            return files
 
-            for line_num, (original, modified, reports) in sorted(line_reports.items()):
-                output_modified = modified != original
+        # neither file nor dir given
+        self.log.warning("No input path provided to find_files_to_process()")
+        return []
 
-                log.info("  %s: Original: %s", log.cyan(f"L{line_num}"), original.rstrip())
-                if output_modified:
-                    log.info("  %s: %s %s",
-                            log.cyan(f"L{line_num}"),
-                            log.cyan("Modified:"),
-                            modified.rstrip())
+    # ------------------------------------------------------------------
+    def scan(self, files: List[str]) -> ScanStats:
+        """Process many files and return accumulated statistics.
 
-                for report in reports:
-                    # Set colors based on action and marker type
-                    if report.action == "Removed":
-                        action_colored = log.red(report.action)
-                    elif report.action == "Replaced" or report.action.startswith("Processed"):
-                        action_colored = log.magenta(report.action)
-                    else:
-                        action_colored = log.yellow(report.action)
+        *Does not* automatically commit / overwrite cleaned files - caller can
+        walk over results if self.clean_file is True and decide what to do.
+        """
+        stats = ScanStats(start_time=time.time())
+        self.log.info("Starting scan of %d file(s)…", len(files))
+        self._results: Dict[str, FileProcessResult] = {}
 
-                    # Color marker type
-                    if report.marker_type in ("Hidden", "IdeographicVS"):
-                        type_colored = log.red(report.marker_type)
-                    else:
-                        type_colored = log.yellow(report.marker_type)
+        for path in files:
+            res = self._process_file(path)
+            self._results[path] = res
+            stats.update_from_result(res)
 
-                    details = f"'{repr(report.original_char)}' ({report.description})"
-                    if report.replacement:
-                        details += f" -> '{repr(report.replacement)}'"
+        stats.end_time = time.time()
+        return stats
 
-                    column_str = f"column {report.char_idx + 1}"
-                    log.info("    %s (%s): %s at %s",
-                            action_colored,
-                            type_colored,
-                            details,
-                            log.cyan(column_str))
+    # ------------------------------------------------------------------
+    def cleaned_temp_paths(self) -> Dict[str, str]:
+        """Return mapping *original → temp* for files actually modified."""
+        return {
+            orig: res.temp_file_path
+            for orig, res in self._results.items()
+            if res.temp_file_path is not None
+        }
 
-        # If cleaning but no changes made, clean up temp file
-        if temp_file_path and not content_changed:
+    # ------------------------------------------------------------------
+    def commit_changes(self) -> Tuple[int, int]:
+        """Atomically replace originals with cleaned temps. Returns (ok, errors)."""
+        ok = err = 0
+        for orig, tmp in list(self.cleaned_temp_paths().items()):
             try:
-                os.remove(temp_file_path)
-                temp_file_path = None
-                log.debug("Removed unused temporary file for %s as no changes were made", filepath)
-            except OSError as e:
-                log.debug("Could not remove temporary file %s: %s", temp_file_path, e)
+                stat = os.stat(orig)
+                os.replace(tmp, orig)
+                os.chmod(orig, stat.st_mode)
+                ok += 1
+            except Exception as e:  # pragma: no cover
+                self.log.error("Error committing %s → %s: %s", tmp, orig, e)
+                err += 1
+        return ok, err
 
-        return FileProcessResult(
-            filepath=filepath,
-            had_marker_or_change=file_had_marker_or_change,
-            temp_file_path=temp_file_path if content_changed else None,
-            detected_markers=detected_count,
-            processed_markers=processed_count
+    # --- Report Generation Functions ---
+    def display_summary_report(self, stats: ScanStats):
+        """
+        Display a summary report of the scan results.
+        """
+        if self.report_mode == "quiet":
+            return
+        sep = "=" * 60
+        self.log.info("\n%s", sep)
+        self.log.info("%s", self.log.blue("SCAN SUMMARY"))
+        self.log.info("%s", sep)
+        self.log.info("Files processed: %d", stats.files_processed)
+        self.log.info("Files with markers: %d", stats.files_with_markers)
+        self.log.info("Total markers detected: %d", stats.total_markers_detected)
+        if stats.total_markers_processed:
+            self.log.info("Total markers processed: %d", stats.total_markers_processed)
+        self.log.info("Elapsed time: %.2f s", stats.elapsed_time)
+        self.log.info("%s", sep)
+        status = (
+            self.log.yellow("MARKERS FOUND")
+            if stats.files_with_markers
+            else self.log.green("NO MARKERS FOUND")
+        )
+        self.log.info("\nStatus: %s", status)
+
+    # ------------------------------------------------------------------
+    #  Build detector straight from argparse.Namespace
+    # ------------------------------------------------------------------
+    @classmethod
+    def from_args(cls, args, logger: Optional[SimpleLogger] = None):
+        return cls(
+            clean_file=args.clean,
+            check_typographic=args.check_typographic,
+            check_ivs=args.check_ivs,
+            user_excluded_chars=set(getattr(args, "excluded_chars", [])),
+            report_mode=args.report_mode,
+            logger=logger,
         )
 
-    except FileNotFoundError:
-        log.error("File not found: %s", filepath)
-        return FileProcessResult(filepath, False, None, "File not found")
-    except PermissionError:
-        log.error("Permission denied for file: %s", filepath)
-        return FileProcessResult(filepath, False, None, "Permission denied")
-    except Exception as e:
-        log.error("Unexpected error processing %s: %s", filepath, str(e))
-        return FileProcessResult(filepath, False, None, f"Unexpected error: {str(e)}")
+###############################################################################
+#  main() - thin CLI for UnicodeMarkerDetector
+###############################################################################
 
-# --- File Discovery Functions ---
-def find_files_to_process(
-    file_path: Optional[str],
-    dir_path: Optional[str],
-    recursive: bool,
-    ignored_dir_names: Set[str],
-    file_patterns: Optional[List[str]],
-) -> List[str]:
-    """
-    Find files to process based on input parameters.
+def _parse_excluded_chars(vals: List[str], logger: SimpleLogger) -> Set[str]:
+    """Convert a list of CLI strings to a set of Unicode characters."""
+    out: Set[str] = set()
+    for token in vals:
+        try:
+            tok = token.strip()
+            parsed: Optional[str] = None
+            if tok.startswith("U+") and len(tok) > 2:
+                tok = tok[2:]
+            if (4 <= len(tok) <= 6) and tok.isalnum():
+                parsed = chr(int(tok, 16))
+            elif len(tok) == 1: # Treat as a literal character
+                parsed = tok
+        finally:
+            if parsed:
+                out.add(parsed)
+                logger.debug(f"Excluding character: '{repr(parsed)}' (U+{ord(parsed):04X})")
+            else:
+                logger.error("\n%s for --exclude-char '%s'. Use U+XXXX, plain char, or hex.", logger.red("Error: Invalid format"), token)
+                raise SystemExit(1)
+    return out
 
-    Args:
-        file_path: Path to a single file (or None)
-        dir_path: Path to a directory (or None)
-        recursive: Whether to recursively search directories
-        ignored_dir_names: Set of directory names to ignore
-        file_patterns: Optional list of file patterns to include
-
-    Returns:
-        List of file paths to process
-    """
-    files_to_process = []
-
-    # Compile file pattern regex if specified
-    pattern_regex = None
-    if file_patterns:
-        pattern_parts = []
-        for pattern in file_patterns:
-            # Convert glob-like patterns to regex
-            regex_pattern = pattern.replace('.', '\\.').replace('*', '.*').replace('?', '.')
-            pattern_parts.append(f"({regex_pattern})")
-        pattern_regex = re.compile(f"^{'|'.join(pattern_parts)}$")
-        log.debug("Using file pattern regex: %s", pattern_regex.pattern)
-
-    # Process single file
-    if file_path:
-        if not os.path.isfile(file_path):
-            log.error("File '%s' not found.", file_path)
-            return []
-
-        if is_likely_text_file(file_path):
-            files_to_process.append(file_path)
-            log.debug("Added file to process: %s", file_path)
-        else:
-            log.info("Skipping '%s' as it does not appear to be text.", file_path)
-
-    # Process directory
-    elif dir_path:
-        if not os.path.isdir(dir_path):
-            log.error("Directory '%s' not found.", dir_path)
-            return []
-
-        log.debug("Processing directory: %s (recursive=%s)", dir_path, recursive)
-
-        if recursive:
-            for root_dir, dirs_in_root, filenames_in_dir in os.walk(dir_path, topdown=True):
-                # Filter out ignored directories
-                original_dirs = set(dirs_in_root)
-                dirs_in_root[:] = [d for d in dirs_in_root if d not in ignored_dir_names]
-
-                # Log ignored directories if any were filtered
-                ignored = original_dirs - set(dirs_in_root)
-                if ignored and log.level <= log.DEBUG:
-                    log.debug("Ignoring directories in %s: %s", root_dir, ", ".join(ignored))
-
-                # Process files in current directory
-                for filename in filenames_in_dir:
-                    filepath = os.path.join(root_dir, filename)
-
-                    # Apply file pattern filter if specified
-                    if pattern_regex and not pattern_regex.match(filename):
-                        log.debug("Skipping '%s' - doesn't match pattern.", filepath)
-                        continue
-
-                    if os.path.isfile(filepath) and is_likely_text_file(filepath):
-                        files_to_process.append(filepath)
-                        log.debug("Added file to process: %s", filepath)
-        else:
-            # Non-recursive directory scan
-            for item in os.listdir(dir_path):
-                filepath = os.path.join(dir_path, item)
-
-                # Apply file pattern filter if specified
-                if pattern_regex and not pattern_regex.match(item):
-                    log.debug("Skipping '%s' - doesn't match pattern.", filepath)
-                    continue
-
-                if os.path.isfile(filepath) and is_likely_text_file(filepath):
-                    files_to_process.append(filepath)
-                    log.debug("Added file to process: %s", filepath)
-
-    log.debug("Found %d files to process", len(files_to_process))
-    return files_to_process
-
-# --- Report Generation Functions ---
-def display_summary_report(
-    stats: ScanStats,
-    report_mode: str = "normal"
-) -> None:
-    """
-    Display a summary report of the scan results.
-
-    Args:
-        stats: ScanStats object with scan statistics
-        report_mode: Reporting mode (normal, quiet, or verbose)
-    """
-    if report_mode == "quiet":
-        return
-
-    separator = "=" * 60
-    log.info("\n%s", separator)
-    log.info("%s", log.blue("SCAN SUMMARY"))
-    log.info("%s", separator)
-    log.info("Files processed: %d", stats.files_processed)
-    log.info("Files with markers: %d", stats.files_with_markers)
-    log.info("Total markers detected: %d", stats.total_markers_detected)
-
-    if stats.total_markers_processed > 0:
-        log.info("Total markers processed: %d", stats.total_markers_processed)
-
-    log.info("Elapsed time: %.2f seconds", stats.elapsed_time)
-    log.info("%s", separator)
-
-    if stats.files_with_markers > 0:
-        log.info("\nStatus: %s", log.yellow("MARKERS FOUND"))
-    else:
-        log.info("\nStatus: %s", log.green("NO MARKERS FOUND"))
-
-
-def main():
+def build_arg_parser() -> argparse.ArgumentParser:
     # --- Argument Parsing ---
     # (Epilog and examples remain the same, using f-strings as before)
     hidden_marker_examples = "\n".join([f"  '{m}' : {d}" for m, d in list(HIDDEN_MARKERS.items())[:8]])
@@ -792,197 +783,107 @@ Output Coloring: Use --no-color to disable. Respects NO_COLOR env var.
 
     parser.add_argument("--version", action="version", version=f"%(prog)s {VERSION}")
 
-    args = parser.parse_args()
+    return parser
 
-    # --- Set up logging ---
-    use_colors = sys.stdout.isatty() and os.environ.get("NO_COLOR") is None and not args.no_color
 
-    # Set up the global logger
-    global log
+def main(argv: Optional[List[str]] = None) -> None:  # noqa: C901 (long, but straight‑line)
+    parser = build_arg_parser()
+    args = parser.parse_args(argv)
 
-    # Map log levels from strings to integers
+    #  Logger setup
     log_levels = {
         "DEBUG": SimpleLogger.DEBUG,
         "INFO": SimpleLogger.INFO,
         "WARNING": SimpleLogger.WARNING,
-        "ERROR": SimpleLogger.ERROR
+        "ERROR": SimpleLogger.ERROR,
     }
-
     log = SimpleLogger(
         level=log_levels[args.log_level],
-        use_colors=use_colors,
-        log_file=args.log_file
+        use_colors=sys.stdout.isatty() and not args.no_color and os.environ.get("NO_COLOR") is None,
+        log_file=args.log_file,
     )
 
-    log.debug("Starting Unicode Marker Detector v%s", VERSION)
+    log.debug("Unicode Marker Detector v%s starting", VERSION)
     log.debug("Log level set to %s", args.log_level)
 
     # Process excluded characters
-    user_excluded_chars: Set[str] = set()
-    for char_str in args.excluded_chars_str:
-        parsed_char = None
-        try:
-            hex_code = char_str
-            if hex_code.startswith('U+') and len(hex_code) > 2:
-                hex_code = hex_code[2:]
-            if (4 <= len(hex_code) <= 6) and hex_code.isalnum():
-                parsed_char = chr(int(hex_code.upper(), 16))
-            elif len(char_str) == 1: # Treat as a literal character
-                parsed_char =  char_str
-        finally:
-            if parsed_char:
-                user_excluded_chars.add(parsed_char)
-                log.debug(f"Excluding character: '{repr(parsed_char)}' (U+{ord(parsed_char):04X})")
-            else:
-                log.error("\n%s for --exclude-char '%s'. Use U+XXXX, plain char, or hex.", log.red("Error: Invalid format"), char_str)
-                raise SystemExit(1)
+    excluded_chars = _parse_excluded_chars(args.excluded_chars_str, log)
 
-    # Override clean flag if dry-run is specified
-    clean_file = args.clean
+    # ── Detector instance ─────────────────────────────────────────────
+    detector = UnicodeMarkerDetector(
+        clean_file=args.clean,
+        check_typographic=args.check_typographic,
+        check_ivs=args.check_ivs,
+        user_excluded_chars=excluded_chars,
+        report_mode=args.report_mode,
+        logger=log,
+    )
 
-    # --- Find files to process ---
-    ignored_dir_names = set(args.ignored_dirs) if args.ignored_dirs else set()
-    if ignored_dir_names:
-        log.debug("Ignored directories: %s", ", ".join(ignored_dir_names))
-
-    # For stdin mode, create a temporary file
-    stdin_temp_file = None
+    # ── Build file list ───────────────────────────────────────────────    stdin_temp_file = None
     if args.stdin:
         log.debug("Reading from standard input")
         try:
             stdin_data = sys.stdin.read()
-            stdin_temp_file = tempfile.NamedTemporaryFile(mode='w', encoding='utf-8', delete=False)
-            stdin_temp_file.write(stdin_data)
-            stdin_temp_file.close()
-            files_to_process = [stdin_temp_file.name]
-            log.debug("Created temporary file from stdin: %s", stdin_temp_file.name)
+            stdin_tmp = tempfile.NamedTemporaryFile("w", encoding="utf-8", delete=False)
+            stdin_tmp.write(stdin_data)
+            stdin_tmp.close()
+            files_to_process = [stdin_tmp.name]
+            original_stdin_tmp = stdin_tmp.name
+            log.debug("Created temporary file from stdin: %s", original_stdin_tmp)
         except Exception as e:
             log.error("Error reading from stdin: %s", e)
             raise SystemExit(1)
     else:
-        files_to_process = find_files_to_process(
-            args.file,
-            args.dir,
-            args.recursive,
-            ignored_dir_names,
-            args.file_patterns
+        files_to_process = detector.find_files_to_process(
+            file_path=args.file,
+            dir_path=args.dir,
+            recursive=args.recursive,
+            ignored_dir_names=set(args.ignored_dirs),
+            file_patterns=args.file_patterns,
         )
+        original_stdin_tmp = None
 
     if not files_to_process:
         log.warning("No text files found or selected for processing.")
         raise SystemExit(1)
 
     # --- Process files ---
-    stats = ScanStats()
-    stats.start_time = time.time()
+    stats = detector.scan(files_to_process)
 
-    # Create shared configuration for worker processes
-    worker_config = {
-        'clean_file': clean_file,
-        'check_typographic': args.check_typographic,
-        'check_ivs': args.check_ivs,
-        'user_excluded_chars': user_excluded_chars,
-        'report_mode': args.report_mode
-    }
-
-    # Map of original file paths to temp file paths for changed files
-    files_to_commit = {}
-
-    log.info(f"Starting scan of {len(files_to_process)} file(s)...")
-
-    for filepath in files_to_process:
-        try:
-            result = process_file(
-                filepath,
-                clean_file,
-                args.check_typographic,
-                args.check_ivs,
-                user_excluded_chars,
-                args.report_mode
-            )
-
-            stats.update_from_result(result)
-            if result.error:
-                log.error(f"Error processing {result.filepath}: {result.error}")
-            if result.temp_file_path:
-                files_to_commit[result.filepath] = result.temp_file_path
-                log.debug(f"Added file to commit: {result.filepath} -> {result.temp_file_path}")
-        except KeyboardInterrupt:
-            log.warning("Processing interrupted by user")
-            raise SystemExit(1)
-
-    stats.end_time = time.time()
 
     # --- Cleanup for stdin mode ---
-    if args.stdin and stdin_temp_file:
-        if stdin_temp_file.name in files_to_commit:
+    if args.stdin:
+        tmp_map = detector.cleaned_temp_paths()
+        if args.clean and original_stdin_tmp and original_stdin_tmp in tmp_map:
             log.debug("Processing cleaned stdin content")
-            # Write cleaned content to stdout
-            try:
-                with open(files_to_commit[stdin_temp_file.name], 'r', encoding='utf-8') as f:
-                    cleaned_content = f.read()
-                    sys.stdout.write(cleaned_content)
-                # Remove the temp file
-                os.remove(files_to_commit[stdin_temp_file.name])
-                log.debug(f"Removed temporary output file: {files_to_commit[stdin_temp_file.name]}")
-                del files_to_commit[stdin_temp_file.name]
-            except Exception as e:
-                log.error(f"Error processing cleaned stdin content: {e}")
-
-        # Remove the input temp file
-        try:
-            os.remove(stdin_temp_file.name)
-            log.debug(f"Removed temporary stdin file: {stdin_temp_file.name}")
-        except OSError as e:
-            log.error(f"Error removing temporary stdin file: {e}")
+            with open(tmp_map[original_stdin_tmp], "r", encoding="utf-8") as f:
+                sys.stdout.write(f.read())
+            os.remove(tmp_map[original_stdin_tmp])
+        # always remove the input tmp
+        if original_stdin_tmp and os.path.exists(original_stdin_tmp):
+            os.remove(original_stdin_tmp)
 
     # --- Confirmation and commit phase ---
-    commit_changes = False
-    temp_files_to_remove = list(files_to_commit.values())
-
-    if clean_file and files_to_commit:
-        log.warning(f"\nModifications generated for {len(files_to_commit)} file(s).")
-
-        if not args.auto_confirm_clean:
+    changed_paths = detector.cleaned_temp_paths()
+    if args.clean and changed_paths:
+        log.warning("\nModifications prepared for %d file(s).", len(changed_paths))
+        proceed = args.auto_confirm_clean
+        if not proceed:
             try:
-                confirm = input("Save changes? (yes/no): ").lower().strip()
-                if confirm == 'yes':
-                    commit_changes = True
-                    log.info("User confirmed changes")
-                else:
-                    log.info("Changes discarded by user")
-            except (EOFError, KeyboardInterrupt):
+                proceed = input("Save changes? (yes/no): ").strip().lower() == "yes"
+            except (KeyboardInterrupt, EOFError):
                 log.error("\nNon-interactive environment detected. Discarding changes.")
                 log.info("Use -y or --yes to save changes non-interactively.")
-        else:
-            log.warning("Applying changes automatically due to -y/--yes flag.")
-            commit_changes = True
-
-        if commit_changes:
+                proceed = False
+        if proceed:
             log.info("Saving modified files...")
-            saved_count = 0
-            commit_errors = 0
-
-            for original_path, temp_path in list(files_to_commit.items()):
-                try:
-                    if os.path.exists(temp_path):
-                        original_stat = os.stat(original_path)
-                        os.replace(temp_path, original_path)
-                        os.chmod(original_path, original_stat.st_mode)
-                        saved_count += 1
-                        temp_files_to_remove.remove(temp_path)
-                        log.debug(f"Saved changes to {original_path}")
-                    else:
-                        log.error(f"Error saving {original_path}: Temporary file {temp_path} not found.")
-                        commit_errors += 1
-                except OSError as e:
-                    log.error(f"Error saving changes for {original_path}: {e}")
-                    commit_errors += 1
-
-            log.info(f"Finished saving: {saved_count} file(s) updated successfully, {commit_errors} error(s).")
+            ok, err = detector.commit_changes()
+            log.info("Finished saving: %d file(s); %d error(s).", ok, err)
+        else:
+            log.info("Changes discarded by user.")
 
     # Clean up temporary files
-    for temp_path in temp_files_to_remove:
+    for temp_path in changed_paths.values():
         if temp_path and os.path.exists(temp_path):
             try:
                 os.remove(temp_path)
@@ -991,7 +892,7 @@ Output Coloring: Use --no-color to disable. Respects NO_COLOR env var.
                 log.error(f"Failed to remove temporary file {temp_path}: {e}")
 
     # --- Generate final report ---
-    display_summary_report(stats, args.report_mode)
+    detector.display_summary_report(stats)
 
     # Write report to file if requested
     if args.report_file:

@@ -94,7 +94,8 @@ class TestErrorHandling(unittest.TestCase):
         os.chmod(target_dir_for_file, original_dir_perms) # Restore
 
         self.assertEqual(result.returncode, 0) # Script handles error per file
-        self.assertIn(f"Could not create temporary file in {target_dir_for_file}", result.stdout)
+        self.assertIn(f"Could not create temporary file:", result.stdout)
+        self.assertIn(f"Permission denied:", result.stdout)
         self.assertEqual(read_file_content(file_to_clean), f"{NORMAL_TEXT}{ZERO_WIDTH_SPACE}") # Unchanged
 
     # @unittest.skipIf(os.name == 'nt', "File permission tests are tricky on Windows")
