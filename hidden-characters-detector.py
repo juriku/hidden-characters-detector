@@ -250,10 +250,6 @@ class SimpleLogger:
             f"{self.COLORS[color]}{s}{self.COLORS['reset']}" if self.use_colors else s
         )
 
-# Global logger instance, will be initialized in main()
-log = None
-
-
 # --- Data Models ---
 @dataclass
 class MarkerReport:
@@ -332,8 +328,12 @@ class UnicodeMarkerDetector:
     def _is_likely_text_file(path: str, chunk_size: int = 4096) -> bool:
         """Heuristic test: null‑byte == binary; else assume text."""
         try:
+            file_size = os.path.getsize(path)
+            if file_size == 0:
+                return True # Empty files are considered text
+            chunk_to_read = min(chunk_size, file_size)
             with open(path, 'rb') as f:
-                chunk = f.read(chunk_size)
+                chunk = f.read(chunk_to_read)
             if b'\x00' in chunk: # Null byte usually means binary
                 return False
             # Try to decode a chunk as UTF-8. If it fails, it might be another encoding,
@@ -341,16 +341,22 @@ class UnicodeMarkerDetector:
             try:
                 chunk.decode('utf-8', errors='strict')
             except UnicodeDecodeError:
-                # Could be another text encoding, or binary that happens to not have nulls.
-                # For this simple check, we'll lean towards 'text' if no nulls.
-                pass # Potentially still text, just not UTF-8
+                # Check if it's likely another text encoding
+                text_bytes = 0
+                for byte in chunk:
+                    if 32 <= byte <= 126 or byte in [9, 10, 13]:  # printable ASCII + common whitespace
+                        text_bytes += 1
+                # If more than 75% looks like text, consider it text
+                if text_bytes / len(chunk) > 0.75:
+                    return True
+                return False
             return True
         except (IOError, PermissionError):
             return False
 
     def _detect_file_encoding(self, path: str, fallback: str = 'utf-8') -> str:
         """Attempt to detect the encoding of a file."""
-        for enc in ['utf-8', 'latin-1', 'cp1252', sys.getdefaultencoding()]:
+        for enc in ['utf-8', 'utf-16', 'latin-1', 'cp1252', sys.getdefaultencoding()]:
             try:
                 with open(path, 'r', encoding=enc) as f:
                     f.read(1024)  # Read a chunk to test encoding
@@ -809,7 +815,7 @@ def main(argv: Optional[List[str]] = None) -> None:  # noqa: C901 (long, but str
     # Process excluded characters
     excluded_chars = _parse_excluded_chars(args.excluded_chars_str, log)
 
-    # ── Detector instance ─────────────────────────────────────────────
+    # -- Detector instance --
     detector = UnicodeMarkerDetector(
         clean_file=args.clean,
         check_typographic=args.check_typographic,
@@ -819,7 +825,7 @@ def main(argv: Optional[List[str]] = None) -> None:  # noqa: C901 (long, but str
         logger=log,
     )
 
-    # ── Build file list ───────────────────────────────────────────────    stdin_temp_file = None
+    # -- Build file list --
     if args.stdin:
         log.debug("Reading from standard input")
         try:
