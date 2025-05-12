@@ -29,7 +29,6 @@ class TestFunctional(unittest.TestCase):
         result = run_script(["-f", str(test_file)])
 
         self.assertEqual(result.returncode, 0)
-        self.assertIn(f"File: {str(test_file)}", result.stdout)
         self.assertIn("Zero Width Space (U+200B)", result.stdout)
         self.assertIn("Detected", result.stdout)
         self.assertIn("MARKERS FOUND", result.stdout) # Summary
@@ -42,7 +41,6 @@ class TestFunctional(unittest.TestCase):
         result = run_script(["-f", str(test_file), "--check-typographic"])
 
         self.assertEqual(result.returncode, 0)
-        self.assertIn(f"File: {str(test_file)}", result.stdout)
         self.assertIn("Em Dash (U+2014)", result.stdout)
         self.assertIn("Detected", result.stdout)
         self.assertEqual(read_file_content(test_file), file_content)
@@ -54,7 +52,6 @@ class TestFunctional(unittest.TestCase):
         result = run_script(["-f", str(test_file), "--check-ivs"])
 
         self.assertEqual(result.returncode, 0)
-        self.assertIn(f"File: {str(test_file)}", result.stdout)
         self.assertIn("Ideographic Variation Selector", result.stdout)
         self.assertIn("Detected", result.stdout)
 
@@ -72,7 +69,6 @@ class TestFunctional(unittest.TestCase):
         result = run_script(["-f", str(test_file), "-c", "-y"])
 
         self.assertEqual(result.returncode, 0)
-        self.assertIn(f"File: {str(test_file)}", result.stdout)
         self.assertIn("Zero Width Space (U+200B)", result.stdout)
         self.assertIn("Removed", result.stdout)
         self.assertIn("Saving modified files...", result.stdout)

@@ -4,6 +4,8 @@ A Python utility for detecting and cleaning hidden Unicode markers, invisible ch
 
 **Version:** 1.0.0
 
+## website version: [ai-detect.devbox.buzz](ai-detect.devbox.buzz)
+
 ## What It Does
 
 This tool scans text files for various Unicode characters that are often used as hidden watermarks or may cause formatting issues. It can detect:

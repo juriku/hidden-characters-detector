@@ -318,6 +318,7 @@ class UnicodeMarkerDetector:
         self.check_ivs = check_ivs
         self.user_excluded_chars: Set[str] = set(user_excluded_chars or [])
         self.report_mode = report_mode  # normal | quiet | verbose
+        self.multiple_files = False
         self.log = logger or SimpleLogger()
         self._results: Dict[str, FileProcessResult] = {}
 
@@ -504,7 +505,8 @@ class UnicodeMarkerDetector:
 
     # ------------------------------------------------------------------
     def _log_file_report(self, filepath: str, line_reports):
-        self.log.info("\n%s %s", self.log.blue("File:"), filepath)
+        if self.multiple_files:
+            self.log.info("\n%s %s", self.log.blue("File:"), filepath)
         for ln, (orig, mod, reps) in sorted(line_reports.items()):
             self.log.info("  %s: Original: %s", self.log.cyan(f"L{ln}"), orig.rstrip())
             if mod != orig:
@@ -563,7 +565,8 @@ class UnicodeMarkerDetector:
                 files.append(file_path)
                 self.log.debug("Added file to process: %s", file_path)
             else:
-                self.log.info("Skipping '%s' as it does not appear to be text.", file_path)
+                if self.multiple_files:
+                    self.log.info("Skipping '%s' as it does not appear to be text.", file_path)
             return files
 
         # Directory mode ---------------------------------------------
@@ -597,7 +600,9 @@ class UnicodeMarkerDetector:
         walk over results if self.clean_file is True and decide what to do.
         """
         stats = ScanStats(start_time=time.time())
-        self.log.info("Starting scan of %d file(s)…", len(files))
+        if len(files) > 1:
+            self.multiple_files = True
+            self.log.info("Starting scan of %d file(s)...", len(files))
         self._results: Dict[str, FileProcessResult] = {}
 
         for path in files:
@@ -610,7 +615,7 @@ class UnicodeMarkerDetector:
 
     # ------------------------------------------------------------------
     def cleaned_temp_paths(self) -> Dict[str, str]:
-        """Return mapping *original → temp* for files actually modified."""
+        """Return mapping *original -> temp* for files actually modified."""
         return {
             orig: res.temp_file_path
             for orig, res in self._results.items()
@@ -628,7 +633,7 @@ class UnicodeMarkerDetector:
                 os.chmod(orig, stat.st_mode)
                 ok += 1
             except Exception as e:  # pragma: no cover
-                self.log.error("Error committing %s → %s: %s", tmp, orig, e)
+                self.log.error("Error committing %s -> %s: %s", tmp, orig, e)
                 err += 1
         return ok, err
 
@@ -792,7 +797,7 @@ Output Coloring: Use --no-color to disable. Respects NO_COLOR env var.
     return parser
 
 
-def main(argv: Optional[List[str]] = None) -> None:  # noqa: C901 (long, but straight‑line)
+def main(argv: Optional[List[str]] = None) -> None:  # noqa: C901 (long, but straight line)
     parser = build_arg_parser()
     args = parser.parse_args(argv)
 

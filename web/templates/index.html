@@ -1,0 +1,779 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Unicode Marker Detector - Material Design 3</title>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" />
+
+    <style>
+        /* Material Design 3 Inspired Custom Styles (Refined) */
+        :root {
+            /* M3 Color Palette (Baseline Purple Theme - adjust if needed) */
+            --md-sys-color-primary: #6750A4;
+            --md-sys-color-on-primary: #FFFFFF;
+            --md-sys-color-primary-container: #EADDFF;
+            --md-sys-color-on-primary-container: #21005D;
+            --md-sys-color-secondary: #625B71;
+            --md-sys-color-on-secondary: #FFFFFF;
+            --md-sys-color-secondary-container: #E8DEF8;
+            --md-sys-color-on-secondary-container: #1D192B;
+            --md-sys-color-tertiary: #7D5260;
+            --md-sys-color-on-tertiary: #FFFFFF;
+            --md-sys-color-tertiary-container: #FFD8E4;
+            --md-sys-color-on-tertiary-container: #31111D;
+            --md-sys-color-error: #B3261E;
+            --md-sys-color-on-error: #FFFFFF;
+            --md-sys-color-error-container: #F9DEDC;
+            --md-sys-color-on-error-container: #410E0B;
+            --md-sys-color-background: #FFFBFE;
+            --md-sys-color-on-background: #1C1B1F;
+            --md-sys-color-surface: #FFFBFE;
+            --md-sys-color-on-surface: #1C1B1F;
+            --md-sys-color-surface-variant: #E7E0EC;
+            --md-sys-color-on-surface-variant: #49454F;
+            --md-sys-color-outline: #79747E;
+            --md-sys-color-outline-variant: #CAC4D0; /* For lighter outlines like text field inactive */
+            --md-sys-color-shadow: #000000;
+            --md-sys-color-inverse-surface: #313033;
+            --md-sys-color-inverse-on-surface: #F4EFF4;
+            --md-sys-color-inverse-primary: #D0BCFF;
+            --md-sys-color-surface-container-highest: #E6E0E9; /* Used for filled text field bg */
+            --md-sys-color-surface-container-low: #F7F2FA; /* Subtle bg for hover states */
+
+            /* Typography Tokens (Aligned with M3 Scale) */
+            --md-sys-typescale-display-small-font-family: 'Roboto', sans-serif;
+            --md-sys-typescale-display-small-font-weight: 400;
+            --md-sys-typescale-display-small-font-size: 2.25rem; /* 36px */
+            --md-sys-typescale-display-small-line-height: 2.75rem; /* 44px */
+            --md-sys-typescale-display-small-letter-spacing: 0px;
+
+            --md-sys-typescale-title-large-font-family: 'Roboto', sans-serif;
+            --md-sys-typescale-title-large-font-weight: 400;
+            --md-sys-typescale-title-large-font-size: 1.375rem; /* 22px */
+            --md-sys-typescale-title-large-line-height: 1.75rem; /* 28px */
+            --md-sys-typescale-title-large-letter-spacing: 0px;
+
+            --md-sys-typescale-title-medium-font-family: 'Roboto', sans-serif;
+            --md-sys-typescale-title-medium-font-weight: 500;
+            --md-sys-typescale-title-medium-font-size: 1rem; /* 16px */
+            --md-sys-typescale-title-medium-line-height: 1.5rem; /* 24px */
+            --md-sys-typescale-title-medium-letter-spacing: 0.15px;
+
+            --md-sys-typescale-label-large-font-family: 'Roboto', sans-serif;
+            --md-sys-typescale-label-large-font-weight: 500;
+            --md-sys-typescale-label-large-font-size: 0.875rem; /* 14px */
+            --md-sys-typescale-label-large-line-height: 1.25rem; /* 20px */
+            --md-sys-typescale-label-large-letter-spacing: 0.1px;
+
+            --md-sys-typescale-label-medium-font-family: 'Roboto', sans-serif;
+            --md-sys-typescale-label-medium-font-weight: 500;
+            --md-sys-typescale-label-medium-font-size: 0.75rem; /* 12px */
+            --md-sys-typescale-label-medium-line-height: 1rem; /* 16px */
+            --md-sys-typescale-label-medium-letter-spacing: 0.5px;
+
+            --md-sys-typescale-body-large-font-family: 'Roboto', sans-serif;
+            --md-sys-typescale-body-large-font-weight: 400;
+            --md-sys-typescale-body-large-font-size: 1rem; /* 16px */
+            --md-sys-typescale-body-large-line-height: 1.5rem; /* 24px */
+            --md-sys-typescale-body-large-letter-spacing: 0.5px;
+
+            --md-sys-typescale-body-medium-font-family: 'Roboto', sans-serif;
+            --md-sys-typescale-body-medium-font-weight: 400;
+            --md-sys-typescale-body-medium-font-size: 0.875rem; /* 14px */
+            --md-sys-typescale-body-medium-line-height: 1.25rem; /* 20px */
+            --md-sys-typescale-body-medium-letter-spacing: 0.25px;
+
+            /* Shape Tokens */
+            --md-sys-shape-corner-none: 0px;
+            --md-sys-shape-corner-extra-small: 4px;
+            --md-sys-shape-corner-small: 8px;
+            --md-sys-shape-corner-medium: 12px;
+            --md-sys-shape-corner-large: 16px;
+            --md-sys-shape-corner-extra-large: 28px;
+            --md-sys-shape-corner-full: 9999px;
+
+            /* Elevation Tokens (Box Shadows) */
+            --md-sys-elevation-level0: none;
+            --md-sys-elevation-level1: 0px 1px 3px 1px rgba(0, 0, 0, 0.15), 0px 1px 2px 0px rgba(0, 0, 0, 0.30);
+            --md-sys-elevation-level2: 0px 2px 6px 2px rgba(0, 0, 0, 0.15), 0px 1px 2px 0px rgba(0, 0, 0, 0.30);
+            --md-sys-elevation-level3: 0px 1px 3px 0px rgba(0, 0, 0, 0.30), 0px 4px 8px 3px rgba(0, 0, 0, 0.15);
+            --md-sys-elevation-level4: 0px 2px 3px 0px rgba(0, 0, 0, 0.30), 0px 6px 10px 4px rgba(0, 0, 0, 0.15);
+            --md-sys-elevation-level5: 0px 4px 4px 0px rgba(0, 0, 0, 0.30), 0px 8px 12px 6px rgba(0, 0, 0, 0.15);
+        }
+
+        /* CSS Reset / Base Styles */
+        *, *::before, *::after {
+            box-sizing: border-box;
+        }
+        body {
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh;
+            background-color: var(--md-sys-color-background);
+            color: var(--md-sys-color-on-background);
+            font-family: var(--md-sys-typescale-body-large-font-family);
+            font-weight: var(--md-sys-typescale-body-large-font-weight);
+            font-size: var(--md-sys-typescale-body-large-font-size);
+            line-height: var(--md-sys-typescale-body-large-line-height);
+            letter-spacing: var(--md-sys-typescale-body-large-letter-spacing);
+            margin: 0;
+        }
+        main {
+            flex: 1 0 auto;
+            padding: 16px; /* Consistent padding */
+        }
+        .container {
+            width: 90%;
+            max-width: 960px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+        p {
+            margin-top: 0;
+            margin-bottom: 16px; /* Consistent paragraph spacing */
+        }
+
+        /* Typography */
+        h1 {
+            font-family: var(--md-sys-typescale-display-small-font-family);
+            font-weight: var(--md-sys-typescale-display-small-font-weight);
+            font-size: var(--md-sys-typescale-display-small-font-size);
+            line-height: var(--md-sys-typescale-display-small-line-height);
+            letter-spacing: var(--md-sys-typescale-display-small-letter-spacing);
+            color: var(--md-sys-color-primary);
+            margin-top: 24px;
+            margin-bottom: 16px;
+        }
+        .card h5 { /* Card titles */
+            font-family: var(--md-sys-typescale-title-large-font-family);
+            font-weight: var(--md-sys-typescale-title-large-font-weight);
+            font-size: var(--md-sys-typescale-title-large-font-size);
+            line-height: var(--md-sys-typescale-title-large-line-height);
+            letter-spacing: var(--md-sys-typescale-title-large-letter-spacing);
+            color: var(--md-sys-color-on-surface-variant);
+            margin-top: 0;
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+        }
+        .card h5 .material-symbols-outlined { /* Use the new icon class */
+            margin-right: 8px;
+            font-size: 1.75rem;
+            vertical-align: bottom; /* Better alignment */
+        }
+
+        /* Card Styles (M3 Outlined and Filled variations) */
+        .card {
+            border-radius: var(--md-sys-shape-corner-medium);
+            padding: 16px;
+            margin-top: 24px;
+            background-color: var(--md-sys-color-surface);
+            color: var(--md-sys-color-on-surface);
+            /* Default to Outlined style */
+            border: 1px solid var(--md-sys-color-outline);
+            box-shadow: var(--md-sys-elevation-level0); /* Outlined has no shadow */
+        }
+        .card.card-filled { /* Use this class for filled cards */
+             background-color: var(--md-sys-color-surface-container-low); /* Slightly off-white */
+             border: 1px solid transparent; /* No border for filled */
+             box-shadow: var(--md-sys-elevation-level1); /* Add elevation */
+        }
+        .card.results-card { /* Specific filled card type */
+            background-color: var(--md-sys-color-secondary-container);
+            color: var(--md-sys-color-on-secondary-container);
+            border-color: transparent;
+            box-shadow: var(--md-sys-elevation-level1);
+        }
+         .card.info-card { /* Specific filled card type */
+            background-color: var(--md-sys-color-tertiary-container);
+            color: var(--md-sys-color-on-tertiary-container);
+            border-color: transparent;
+            box-shadow: var(--md-sys-elevation-level1);
+        }
+
+        /* Form Elements (M3 Filled Text Field Style) */
+        .form-group {
+            margin-bottom: 24px;
+            position: relative; /* Needed for potential floating labels later */
+        }
+        /* Label above the input */
+        .form-group > label {
+            font-family: var(--md-sys-typescale-label-medium-font-family);
+            font-weight: var(--md-sys-typescale-label-medium-font-weight);
+            font-size: var(--md-sys-typescale-label-medium-font-size);
+            line-height: var(--md-sys-typescale-label-medium-line-height);
+            letter-spacing: var(--md-sys-typescale-label-medium-letter-spacing);
+            color: var(--md-sys-color-on-surface-variant);
+            margin-bottom: 4px; /* Space between label and input */
+            display: block;
+        }
+        textarea,
+        input[type="text"],
+        select {
+            display: block; /* Ensure they take full width */
+            width: 100%;
+            padding: 16px; /* Vertical padding */
+            padding-bottom: 8px; /* Less padding at bottom for underline */
+            font-family: var(--md-sys-typescale-body-large-font-family);
+            font-weight: var(--md-sys-typescale-body-large-font-weight);
+            font-size: var(--md-sys-typescale-body-large-font-size);
+            line-height: var(--md-sys-typescale-body-large-line-height);
+            letter-spacing: var(--md-sys-typescale-body-large-letter-spacing);
+            color: var(--md-sys-color-on-surface);
+            background-color: var(--md-sys-color-surface-container-highest); /* M3 Filled field bg */
+            border: none;
+            border-bottom: 1px solid var(--md-sys-color-on-surface-variant); /* Inactive underline */
+            border-radius: var(--md-sys-shape-corner-extra-small) var(--md-sys-shape-corner-extra-small) 0 0;
+            box-sizing: border-box;
+            transition: border-color 0.2s ease, background-color 0.2s ease;
+        }
+        textarea:hover,
+        input[type="text"]:hover,
+        select:hover {
+             border-bottom-color: var(--md-sys-color-on-surface); /* Hover underline */
+        }
+        textarea:focus,
+        input[type="text"]:focus,
+        select:focus {
+            outline: none;
+            border-bottom: 2px solid var(--md-sys-color-primary); /* Active underline */
+            /* Optional: Slight background change on focus if desired */
+            /* background-color: var(--md-sys-color-surface-container-low); */
+        }
+        textarea {
+            min-height: 120px;
+            resize: vertical;
+            padding-top: 16px; /* Ensure consistent top padding */
+            padding-bottom: 16px; /* Consistent bottom padding */
+        }
+        select {
+            appearance: none;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' height='24' viewBox='0 -960 960 960' width='24'%3E%3Cpath d='M480-345 240-585l56-56 184 184 184-184 56 56-240 240Z' fill='%2349454F'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 16px center;
+            padding-right: 48px;
+        }
+        /* Placeholder styling */
+        ::placeholder { /* Chrome, Firefox, Opera, Safari 10.1+ */
+          color: var(--md-sys-color-on-surface-variant);
+          opacity: 1; /* Firefox */
+        }
+        :-ms-input-placeholder { /* Internet Explorer 10-11 */
+          color: var(--md-sys-color-on-surface-variant);
+        }
+        ::-ms-input-placeholder { /* Microsoft Edge */
+          color: var(--md-sys-color-on-surface-variant);
+        }
+
+
+        /* Checkbox Styling (M3 Style) */
+        .checkbox-group {
+            display: flex;
+            align-items: center;
+            padding: 8px 0; /* Vertical padding for touch target */
+            position: relative;
+        }
+        .checkbox-group input[type="checkbox"] {
+            opacity: 0;
+            position: absolute;
+            width: 40px; /* Larger touch area */
+            height: 40px;
+            top: 50%;
+            left: -8px; /* Center touch area around visual */
+            transform: translateY(-50%);
+            cursor: pointer;
+            margin: 0;
+        }
+        .checkbox-group label {
+            font-family: var(--md-sys-typescale-body-large-font-family);
+            font-size: var(--md-sys-typescale-body-large-font-size);
+            color: var(--md-sys-color-on-surface);
+            position: relative;
+            padding-left: 32px;
+            cursor: pointer;
+            font-weight: 400;
+            margin-bottom: 0;
+        }
+        .checkbox-group label::before { /* Box */
+            content: '';
+            position: absolute;
+            left: 0;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 18px;
+            height: 18px;
+            border: 2px solid var(--md-sys-color-outline);
+            border-radius: var(--md-sys-shape-corner-extra-small);
+            background-color: transparent; /* M3 checkboxes are not filled when unchecked */
+            transition: background-color 0.15s ease-in-out, border-color 0.15s ease-in-out;
+        }
+        .checkbox-group input[type="checkbox"]:checked + label::before {
+            background-color: var(--md-sys-color-primary);
+            border-color: var(--md-sys-color-primary);
+        }
+        .checkbox-group label::after { /* Checkmark */
+            content: 'check'; /* Material Symbols name */
+            font-family: 'Material Symbols Outlined';
+            font-weight: bold; /* Make check thicker */
+            font-size: 16px; /* Adjust size */
+            position: absolute;
+            left: 3px; /* Position checkmark inside box */
+            top: 50%;
+            transform: translateY(-50%) scale(0); /* Hidden */
+            color: var(--md-sys-color-on-primary);
+            transition: transform 0.15s ease-in-out;
+        }
+        .checkbox-group input[type="checkbox"]:checked + label::after {
+            transform: translateY(-50%) scale(1); /* Show */
+        }
+        .checkbox-group input[type="checkbox"]:focus-visible + label::before { /* Focus indicator */
+             outline: 2px solid var(--md-sys-color-primary);
+             outline-offset: 2px;
+        }
+
+
+        /* File Input Styling (Using M3 Outlined Button Style) */
+        .file-input-wrapper {
+            margin-bottom: 16px; /* Consistent spacing */
+        }
+        .file-input-label-main { /* Label for the whole section */
+            font-family: var(--md-sys-typescale-label-medium-font-family);
+            font-weight: var(--md-sys-typescale-label-medium-font-weight);
+            font-size: var(--md-sys-typescale-label-medium-font-size);
+            line-height: var(--md-sys-typescale-label-medium-line-height);
+            letter-spacing: var(--md-sys-typescale-label-medium-letter-spacing);
+            color: var(--md-sys-color-on-surface-variant);
+            margin-bottom: 4px;
+            display: block;
+        }
+        .file-input-button { /* M3 Outlined Button Style */
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            padding: 10px 16px 10px 12px; /* Adjusted padding for icon */
+            height: 40px; /* M3 standard height */
+            font-family: var(--md-sys-typescale-label-large-font-family);
+            font-size: var(--md-sys-typescale-label-large-font-size);
+            font-weight: var(--md-sys-typescale-label-large-font-weight);
+            letter-spacing: var(--md-sys-typescale-label-large-letter-spacing);
+            color: var(--md-sys-color-primary);
+            background-color: transparent;
+            border: 1px solid var(--md-sys-color-outline);
+            border-radius: var(--md-sys-shape-corner-full);
+            cursor: pointer;
+            transition: background-color 0.2s ease;
+            text-transform: none;
+        }
+        .file-input-button:hover {
+            background-color: var(--md-sys-color-surface-container-low); /* Subtle hover */
+        }
+        .file-input-button .material-symbols-outlined {
+            margin-right: 8px;
+            font-size: 18px; /* M3 standard icon size */
+        }
+        input[type="file"] {
+            display: none;
+        }
+        .file-chosen-text {
+            font-family: var(--md-sys-typescale-body-medium-font-family);
+            font-size: var(--md-sys-typescale-body-medium-font-size);
+            color: var(--md-sys-color-on-surface-variant);
+            margin-top: 8px; /* Space below button */
+            display: block;
+        }
+
+
+        /* Button Styling (M3 Filled Button) */
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            padding: 10px 24px; /* Horizontal padding */
+            height: 40px; /* M3 standard height */
+            font-family: var(--md-sys-typescale-label-large-font-family);
+            font-size: var(--md-sys-typescale-label-large-font-size);
+            font-weight: var(--md-sys-typescale-label-large-font-weight);
+            letter-spacing: var(--md-sys-typescale-label-large-letter-spacing);
+            color: var(--md-sys-color-on-primary);
+            background-color: var(--md-sys-color-primary);
+            border: none;
+            border-radius: var(--md-sys-shape-corner-full);
+            cursor: pointer;
+            text-decoration: none;
+            transition: background-color 0.2s ease, box-shadow 0.2s ease;
+            box-shadow: var(--md-sys-elevation-level0); /* Filled buttons have 0 elevation resting */
+            text-transform: none;
+            vertical-align: middle; /* Align with text */
+        }
+        .btn:hover {
+            box-shadow: var(--md-sys-elevation-level1); /* Add elevation on hover */
+            background-color: color-mix(in srgb, var(--md-sys-color-primary) 92%, black);
+        }
+        .btn:focus-visible { /* Focus indicator */
+             outline: 2px solid var(--md-sys-color-primary);
+             outline-offset: 2px;
+        }
+        .btn:active {
+            box-shadow: var(--md-sys-elevation-level0);
+        }
+        .btn .material-symbols-outlined {
+            margin-right: 8px;
+            font-size: 18px; /* M3 standard icon size */
+        }
+        .btn-large { /* Main action button */
+            width: 100%;
+            margin-top: 24px;
+        }
+        .btn-download { /* Tertiary color button */
+            background-color: var(--md-sys-color-tertiary);
+            color: var(--md-sys-color-on-tertiary);
+        }
+        .btn-download:hover {
+            background-color: color-mix(in srgb, var(--md-sys-color-tertiary) 92%, black);
+            box-shadow: var(--md-sys-elevation-level1);
+        }
+
+        /* Collapsible details/summary (Expansion Panel like) */
+        details {
+            border: 1px solid var(--md-sys-color-outline-variant); /* Lighter outline */
+            border-radius: var(--md-sys-shape-corner-medium);
+            margin-bottom: 16px;
+            background-color: var(--md-sys-color-surface);
+            overflow: hidden;
+        }
+        details summary {
+            padding: 12px 16px; /* Reduced padding */
+            font-family: var(--md-sys-typescale-title-medium-font-family);
+            font-weight: var(--md-sys-typescale-title-medium-font-weight);
+            font-size: var(--md-sys-typescale-title-medium-font-size);
+            line-height: var(--md-sys-typescale-title-medium-line-height);
+            letter-spacing: var(--md-sys-typescale-title-medium-letter-spacing);
+            cursor: pointer;
+            color: var(--md-sys-color-on-surface);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            transition: background-color 0.1s ease-in-out;
+            list-style: none; /* Remove default marker */
+        }
+        details summary::-webkit-details-marker { display: none; } /* Hide marker in Webkit */
+        details summary:hover {
+            background-color: var(--md-sys-color-surface-container-low);
+        }
+        details summary::after { /* Custom dropdown arrow */
+            content: 'expand_more';
+            font-family: 'Material Symbols Outlined';
+            font-size: 24px;
+            transition: transform 0.2s ease-in-out;
+            color: var(--md-sys-color-on-surface-variant);
+        }
+        details[open] > summary { /* Style when open */
+            border-bottom: 1px solid var(--md-sys-color-outline-variant);
+        }
+        details[open] > summary::after {
+            transform: rotate(180deg);
+        }
+        .details-content {
+            padding: 16px;
+            background-color: var(--md-sys-color-surface);
+        }
+        .details-content .row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 16px;
+            margin-bottom: 0;
+        }
+        .details-content .row .col {
+            flex: 1;
+            min-width: 220px; /* Adjusted min-width */
+        }
+
+
+        /* Log output styling */
+        pre {
+            background-color: var(--md-sys-color-inverse-surface);
+            color: var(--md-sys-color-inverse-on-surface);
+            padding: 16px;
+            border-radius: var(--md-sys-shape-corner-small);
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            font-family: "Consolas", "Monaco", "Courier New", monospace;
+            font-size: 0.875rem;
+            line-height: 1.6;
+            border: 1px solid var(--md-sys-color-outline-variant);
+        }
+
+        /* Error message styling */
+        .error-message {
+            color: var(--md-sys-color-on-error-container);
+            font-family: var(--md-sys-typescale-body-medium-font-family);
+            font-weight: var(--md-sys-typescale-body-medium-font-weight);
+            font-size: var(--md-sys-typescale-body-medium-font-size);
+            padding: 12px 16px;
+            border: 1px solid var(--md-sys-color-error);
+            background-color: var(--md-sys-color-error-container);
+            border-radius: var(--md-sys-shape-corner-medium);
+            display: flex;
+            align-items: center;
+            margin-top: 16px;
+        }
+        .error-message .material-symbols-outlined {
+            margin-right: 8px;
+            font-size: 20px;
+        }
+
+        /* Footer styling */
+        .page-footer {
+            padding: 32px 16px;
+            background-color: var(--md-sys-color-surface-container-low); /* Lighter footer */
+            color: var(--md-sys-color-on-surface-variant);
+            text-align: center;
+            margin-top: 32px; /* Space above footer */
+        }
+        .footer-copyright {
+            padding: 16px;
+            background-color: var(--md-sys-color-surface-variant); /* Slightly darker copyright */
+            color: var(--md-sys-color-on-surface-variant);
+            font-family: var(--md-sys-typescale-body-small-font-family); /* Using body-small if defined, else body-medium */
+            font-size: 0.75rem; /* M3 Body Small */
+        }
+        .page-footer h5 {
+            color: var(--md-sys-color-on-surface); /* Footer title color */
+            font-family: var(--md-sys-typescale-title-medium-font-family);
+            font-size: var(--md-sys-typescale-title-medium-font-size);
+            font-weight: var(--md-sys-typescale-title-medium-font-weight);
+        }
+        .page-footer ul {
+            list-style-type: none;
+            padding-left: 0;
+            margin-top: 8px;
+        }
+        .page-footer li {
+             margin-bottom: 4px;
+        }
+        .page-footer a {
+            color: var(--md-sys-color-primary);
+            text-decoration: none;
+            font-family: var(--md-sys-typescale-label-large-font-family);
+            font-size: var(--md-sys-typescale-label-large-font-size);
+        }
+        .page-footer a:hover {
+            text-decoration: underline;
+        }
+
+        /* Utility Classes */
+        .center-align { text-align: center; }
+        .row { display: flex; flex-wrap: wrap; margin-left: -8px; margin-right: -8px; } /* Reduced gutter */
+        .col { padding-left: 8px; padding-right: 8px; box-sizing: border-box; }
+        .s12 { width: 100%; }
+        @media (min-width: 600px) { /* M3 small breakpoint approx */
+            .m6 { width: 50%; }
+        }
+        @media (min-width: 905px) { /* M3 medium breakpoint approx */
+            .l4 { width: 33.33333%; }
+            .l6 { width: 50%; }
+            .offset-l2 { margin-left: 16.66667%; }
+        }
+
+        /* Material Symbols Outlined base style */
+        .material-symbols-outlined {
+          font-variation-settings:
+          'FILL' 0,
+          'wght' 400,
+          'GRAD' 0,
+          'opsz' 24; /* Default optical size */
+          vertical-align: bottom; /* Better alignment with text */
+          line-height: 1; /* Prevent extra spacing */
+        }
+
+    </style>
+</head>
+<body>
+    <main>
+        <div class="container">
+            <div class="center-align" style="margin-top: 24px; margin-bottom: 16px;">
+                 <span class="material-symbols-outlined" style="font-size: 3.5rem; color: var(--md-sys-color-primary);">find_in_page</span>
+                <h1>Unicode Marker Detector</h1>
+            </div>
+
+            {% if error_message %}
+                <div class="error-message card">
+                    <span class="material-symbols-outlined">error</span>{{ error_message }} {# Using filled error icon #}
+                </div>
+            {% endif %}
+
+            <form method="POST" enctype="multipart/form-data" action="{{ url_for('index') }}" autocomplete="off">
+                <div class="card card-filled">
+                    <div class="form-group">
+                        <label for="text_input">Paste Text Here</label>
+                        <textarea id="text_input" name="text_input">{{ original_text_input_value }}</textarea>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="file_input_button" class="file-input-label-main">Or Upload a File (Max 10MB, text-based)</label>
+                        <div class="file-input-wrapper">
+                            <label for="file_input" class="file-input-button">
+                                <span class="material-symbols-outlined">upload_file</span>
+                                Choose File
+                            </label>
+                            <input type="file" id="file_input" name="file_input">
+                            <span id="file-chosen-text" class="file-chosen-text">No file chosen</span>
+                        </div>
+                    </div>
+                </div>
+
+                <details {% if request.method == 'GET' %}open{% endif %}>
+                    <summary>Advanced Options</summary>
+                    <div class="details-content">
+                        <div class="row">
+                            <div class="col s12 m6 l4">
+                                <div class="checkbox-group">
+                                    <input type="checkbox" id="clean_file" name="clean_file" value="true" {% if form_data.clean_file %}checked="checked"{% endif %} />
+                                    <label for="clean_file">Clean Markers</label>
+                                </div>
+                            </div>
+                            <div class="col s12 m6 l4">
+                                <div class="checkbox-group">
+                                    <input type="checkbox" id="check_typographic" name="check_typographic" value="true" {% if form_data.check_typographic %}checked="checked"{% endif %} />
+                                    <label for="check_typographic">Check Typographic</label>
+                                </div>
+                            </div>
+                            <div class="col s12 m6 l4">
+                                 <div class="checkbox-group">
+                                    <input type="checkbox" id="check_ivs" name="check_ivs" value="true" {% if form_data.check_ivs %}checked="checked"{% endif %} />
+                                    <label for="check_ivs">Check IVS</label>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="row" style="margin-top: 16px;">
+                            <div class="col s12 m6 form-group">
+                                <label for="excluded_chars">Exclude Characters</label>
+                                <input type="text" id="excluded_chars" name="excluded_chars" value="{{ form_data.excluded_chars }}" placeholder="e.g., U+200B,'">
+                            </div>
+                            <div class="col s12 m6 form-group">
+                                <label for="report_mode">Report Mode</label>
+                                <select id="report_mode" name="report_mode">
+                                    <option value="normal" {% if form_data.report_mode == 'normal' %}selected{% endif %}>Normal Report</option>
+                                    <option value="quiet" {% if form_data.report_mode == 'quiet' %}selected{% endif %}>Quiet Report</option>
+                                    <option value="verbose" {% if form_data.report_mode == 'verbose' %}selected{% endif %}>Verbose Report</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                </details>
+
+                <button type="submit" class="btn btn-large">
+                    <span class="material-symbols-outlined">send</span>Process Text
+                </button>
+            </form>
+
+            {% if results %}
+                <div class="card results-card"> {# Filled card style for results #}
+                    <h5><span class="material-symbols-outlined">assessment</span>Scan Summary</h5>
+                    <p>Files processed: {{ results.files_processed }}</p>
+                    <p>Files with markers: {{ results.files_with_markers }}</p>
+                    <p>Total markers detected: {{ results.total_markers_detected }}</p>
+                    <p>Total markers processed: {{ results.total_markers_processed }}</p>
+                    <p>Elapsed time: {{ "%.2f"|format(results.elapsed_time) }} s</p>
+                    <p>Status: <strong>
+                        {% if results.files_with_markers %}
+                            <span style="color: var(--md-sys-color-error);">MARKERS FOUND</span>
+                        {% else %}
+                            <span style="color: var(--md-sys-color-primary);">NO MARKERS FOUND</span>
+                        {% endif %}
+                    </strong></p>
+                </div>
+            {% endif %}
+
+            {% if request.method == 'POST' and form_data.clean_file %}
+                {% if cleaning_performed_no_changes %}
+                    <div class="card info-card"> {# Filled card style for info #}
+                        <h5><span class="material-symbols-outlined">info</span>Cleaning Status</h5> {# Using filled info icon #}
+                        <p>File processed with "Clean Markers" enabled. No changes were made as no targeted markers were found or processed.</p>
+                    </div>
+                {% elif download_available and cleaned_content_for_download is not none %}
+                    <div class="card"> {# Default outlined card for this section #}
+                        {% if not original_input_was_file and cleaned_text_for_display is not none %}
+                             <h5><span class="material-symbols-outlined">cleaning_services</span>Cleaned Text (from Paste)</h5>
+                            <div class="form-group">
+                                <textarea readonly style="min-height: 200px; background-color: var(--md-sys-color-surface-container-low); border: 1px solid var(--md-sys-color-outline-variant); color: var(--md-sys-color-on-surface-variant); font-family: monospace; border-radius: var(--md-sys-shape-corner-small);">{{ cleaned_text_for_display }}</textarea>
+                            </div>
+                        {% elif original_input_was_file %}
+                            <h5><span class="material-symbols-outlined">download_for_offline</span>Cleaned File Ready</h5>
+                            <p>Your uploaded file has been processed. Markers were found and changes were made.</p>
+                        {% endif %}
+
+                        <form method="POST" action="{{ url_for('download_cleaned_text_route') }}" style="display:block; margin-top:15px;">
+                            <input type="hidden" name="cleaned_data_for_download" value="{{ cleaned_content_for_download }}">
+                            <input type="hidden" name="filename_for_download" value="{{ filename_for_download }}">
+                            <button type="submit" class="btn btn-download">
+                                <span class="material-symbols-outlined">download</span>
+                                Download Cleaned {% if original_input_was_file %}{{ filename_for_download }}{% else %}Text{% endif %}
+                            </button>
+                        </form>
+                    </div>
+                {% endif %}
+            {% endif %}
+
+            {% if log_output %}
+                <div class="card"> {# Default outlined card #}
+                    <h5><span class="material-symbols-outlined">receipt_long</span>Detailed Log</h5>
+                    <pre>{{ log_output }}</pre>
+                </div>
+            {% endif %}
+
+        </div>
+    </main>
+
+    <footer class="page-footer">
+        <div class="container">
+            <div class="row">
+                <div class="col l6 s12 left-align"> {# Align text left in footer sections #}
+                    <h5>Unicode Marker Detector</h5>
+                    <p>A tool to find and manage hidden Unicode characters in text-based files.</p>
+                </div>
+                <div class="col l4 offset-l2 s12 left-align">
+                    <h5>Info</h5>
+                    <ul>
+                        <li><a href="https://github.com" target="_blank" rel="noopener noreferrer">Source Code (Example)</a></li>
+                        <li><a href="#!">Report Issue (Example)</a></li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+        <div class="footer-copyright">
+            <div class="container center-align"> {# Center copyright text #}
+            © {{ g.year }} Unicode Marker Detector WebApp. All rights reserved.
+            </div>
+        </div>
+    </footer>
+
+    <script nonce="{{ g.csp_nonce }}" defer>
+        document.addEventListener('DOMContentLoaded', function() {
+            // File input text update
+            const fileInput = document.getElementById('file_input');
+            const fileChosenText = document.getElementById('file-chosen-text');
+            if (fileInput && fileChosenText) {
+                fileInput.addEventListener('change', function() {
+                    fileChosenText.textContent = this.files.length > 0 ? this.files[0].name : 'No file chosen';
+                });
+            }
+
+            // Logic to keep "Advanced Options" open based on context
+            const detailsElement = document.querySelector('details');
+            if (detailsElement) {
+                {% if request.method == 'GET' %}
+                    detailsElement.open = true;
+                {% elif request.method == 'POST' and (error_message or results or (form_data.clean_file and (cleaning_performed_no_changes or download_available))) %}
+                    detailsElement.open = true;
+                {% endif %}
+            }
+        });
+    </script>
+</body>
+</html>

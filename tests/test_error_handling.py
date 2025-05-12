@@ -54,7 +54,6 @@ class TestErrorHandling(unittest.TestCase):
         binary_file = create_temp_file(self.test_dir, "binary.dat", content="Hello\x00World")
         result = run_script(["-f", str(binary_file)])
         self.assertEqual(result.returncode, 1) # Exits 1 as no *text* files processed
-        self.assertIn(f"Skipping '{binary_file}' as it does not appear to be text.", result.stdout)
         self.assertIn("No text files found or selected for processing.", result.stdout)
 
 
