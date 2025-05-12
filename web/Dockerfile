@@ -14,7 +14,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY web/app.py .
 COPY web/templates .
-COPY web/hidden-characters-detector.py ./unicode_detector.py
+COPY hidden-characters-detector.py ./unicode_detector.py
 
 RUN chown -R app:app /app
 
