@@ -4,7 +4,7 @@ A Python utility for detecting and cleaning hidden Unicode markers, invisible ch
 
 **Version:** 1.0.0
 
-## website version: [ai-detect.devbox.buzz](ai-detect.devbox.buzz)
+## website version: [ai-detect.devbox.buzz](https://ai-detect.devbox.buzz)
 
 ## What It Does
 
