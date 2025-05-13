@@ -104,6 +104,7 @@ TYPOGRAPHIC_MARKERS: Dict[str, str] = {
     '\u2013': "En Dash (U+2013)",
     '\u2014': "Em Dash (U+2014)",
     '\u2026': "Horizontal Ellipsis (U+2026)",
+    '\u2022': "Bullet (U+2022)",
     # Smart Quotes / Curly Quotes
     '\u2018': "Left Single Quotation Mark (U+2018)",
     '\u2019': "Right Single Quotation Mark (U+2019)",
@@ -123,6 +124,8 @@ TYPOGRAPHIC_REPLACEMENTS: Dict[str, str] = {
     '\u2019': "'",  # Right Single Quotation Mark to Apostrophe (Straight Single Quote)
     '\u201C': '"',  # Left Double Quotation Mark to Quotation Mark (Straight Double Quote)
     '\u201D': '"',  # Right Double Quotation Mark to Quotation Mark (Straight Double Quote)
+
+    '\u2022': '*',  # Bullet to Asterisk (common in code/plain text contexts)
 
     # Dashes to Hyphen-Minus (common in code/plain text contexts)
     # U+002D (Hyphen-Minus) is the target, so it's not a key here.
