@@ -294,8 +294,7 @@ def index():
                             cleaning_performed_no_changes = True
                             web_logger.warning("Mismatch: total_markers_processed > 0 but no cleaned temp path found in map.")
                     else:
-                        cleaning_performed_no_changes = True
-                        web_logger.info("Cleaning was enabled, but no markers were processed that required changes.")
+                        web_logger.debug("Cleaning was enabled, but no markers were processed that required changes.")
                 log_output = web_logger.get_captured_logs()
 
             except RequestEntityTooLarge as e:
