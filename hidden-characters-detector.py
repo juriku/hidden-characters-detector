@@ -100,6 +100,7 @@ HIDDEN_MARKERS: Dict[str, str] = {
 # Typographic characters whose usage might be of interest
 TYPOGRAPHIC_MARKERS: Dict[str, str] = {
     '\u2010': "Hyphen (U+2010)",
+    '\u2011': "Non-Breaking Hyphen (U+2011)",
     '\u2013': "En Dash (U+2013)",
     '\u2014': "Em Dash (U+2014)",
     '\u2026': "Horizontal Ellipsis (U+2026)",
@@ -126,6 +127,7 @@ TYPOGRAPHIC_REPLACEMENTS: Dict[str, str] = {
     # Dashes to Hyphen-Minus (common in code/plain text contexts)
     # U+002D (Hyphen-Minus) is the target, so it's not a key here.
     '\u2010': '\u002D',  # Dedicated Hyphen to Hyphen-Minus
+    '\u2011': '\u002D',  # Non-Breaking Hyphen to Hyphen-Minus
     '\u2013': '\u002D',  # En Dash to Hyphen-Minus
     '\u2014': '\u002D',  # Em Dash to Hyphen-Minus
 
