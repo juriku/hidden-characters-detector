@@ -30,28 +30,11 @@ The tool can operate in detection-only mode or can clean files by removing or re
 
 ## Installation
 
-copy `hidden-characters-detector.py`
-
-add function to `.bashrc` and change `${CLONE_DIR}`
-
-```
-function hidden() {
-  local script="${CLONE_DIR}/hidden-characters-detector/hidden-characters-detector.py"
-  local dir="${1:-.}"
-  shift || true
-  if [[ -f "$dir" ]]; then
-    python $script -c --check-ivs --check-typographic -f "$dir"
-  else
-    python $script -c --check-ivs --check-typographic --ignore-dir ".git" -r -d "$dir" $@
-  fi
-}
-```
-
 ### Prerequisites
 
 - Python 3.12 or higher
 
-# optional
+### optional
 
 ```
 pip install -r requirements.txt
@@ -66,6 +49,8 @@ pip install -r requirements.txt
 ## Usage
 
 ```
+./hidden-characters-detector.py --clean --check-ivs --check-typographic -r -d .
+
 ./hidden-characters-detector.py [-h] (-f FILE | -d DIR | --stdin) [-r]
                              [--ignore-dir DIRNAME] [--pattern PATTERN]
                              [-c] [-y] [--exclude-char U+XXXX or Char]
@@ -74,6 +59,21 @@ pip install -r requirements.txt
                              [--report-mode {normal,quiet,verbose}]
                              [--log-level {DEBUG,INFO,WARNING,ERROR}]
                              [--log-file FILE] [--version]
+```
+
+add function to `.bashrc` and change `${CLONE_DIR}`
+
+```
+function hidden() {
+  local script="${CLONE_DIR}/hidden-characters-detector/hidden-characters-detector.py"
+  local dir="${1:-.}"
+  shift || true
+  if [[ -f "$dir" ]]; then
+    python $script -c --check-ivs --check-typographic -f "$dir"
+  else
+    python $script -c --check-ivs --check-typographic --ignore-dir ".git" -r -d "$dir" $@
+  fi
+}
 ```
 
 ## Options
