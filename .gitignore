@@ -51,6 +51,9 @@ coverage.xml
 .pytest_cache/
 cover/
 
+certbot/
+data/
+
 # Translations
 *.mo
 *.pot
