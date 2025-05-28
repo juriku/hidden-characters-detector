@@ -10,6 +10,17 @@ import time
 from dataclasses import dataclass
 from typing import Dict, List, Optional, Set, Tuple
 
+try:
+    import emoji
+    emoji_library_available = True
+except ImportError:
+    print(
+        "The 'emoji' library is not installed. Emoji-specific checks will be skipped. "
+        "Install it with 'pip install emoji' for full functionality.",
+        ImportWarning
+    )
+    emoji_library_available = False
+
 __all__ = [
     "SimpleLogger",
     "MarkerReport",
@@ -19,7 +30,7 @@ __all__ = [
 ]
 
 # --- Configuration ---
-VERSION = "1.0.0"
+VERSION = "1.1.0"
 
 # --- Marker Definitions ---
 # Define common hidden characters often used for watermarking or causing issues
@@ -99,17 +110,116 @@ HIDDEN_MARKERS: Dict[str, str] = {
 
 # Typographic characters whose usage might be of interest
 TYPOGRAPHIC_MARKERS: Dict[str, str] = {
+
+    # Hyphens/Dashes
     '\u2010': "Hyphen (U+2010)",
     '\u2011': "Non-Breaking Hyphen (U+2011)",
     '\u2013': "En Dash (U+2013)",
     '\u2014': "Em Dash (U+2014)",
+    '\u2012': "Figure Dash (U+2012)",
+    '\u2015': "Horizontal Bar (U+2015)",
+    '\u2212': "Minus Sign (U+2212)",
+    '\uFE63': "Small Hyphen-Minus (U+FE63)",
     '\u2026': "Horizontal Ellipsis (U+2026)",
-    '\u2022': "Bullet (U+2022)",
+    # '\u2022': "Bullet (U+2022)",
+
     # Smart Quotes / Curly Quotes
     '\u2018': "Left Single Quotation Mark (U+2018)",
     '\u2019': "Right Single Quotation Mark (U+2019)",
     '\u201C': "Left Double Quotation Mark (U+201C)",
     '\u201D': "Right Double Quotation Mark (U+201D)",
+
+    # Periods / Dots
+    '\u00B7': "Middle Dot (U+00B7)",
+    '\u2219': "Bullet Operator (U+2219)",
+    '\u2023': "Triangular Bullet (U+2023)",
+    '\u2024': "One Dot Leader (U+2024)",
+    '\u2025': "Two Dot Leader (U+2025)",
+    '\u2027': "Hyphenation Point (U+2027)",
+    '\u2059': "Tricolon (U+2059)",
+    '\u3002': "Ideographic Full Stop (U+3002)",
+    '\uFE52': "Small Full Stop (U+FE52)",
+    '\u205A': "Four Dot Mark (U+205A)",
+
+    # Additional Apostrophes/Quotes/Primes
+    '\u00B4': "Acute Accent (U+00B4)",
+    '\u02B9': "Modifier Letter Prime (U+02B9)",
+    '\u02BB': "Modifier Letter Turned Comma (U+02BB)",
+    '\u02BC': "Modifier Letter Apostrophe (U+02BC)",
+    '\u02C8': "Modifier Letter Vertical Line (U+02C8)",
+    '\u0301': "Combining Acute Accent (U+0301 - Use with space or letter)",
+
+    # prime / quote-like marks
+    '\u2032': "Prime (U+2032)",
+    '\u2033': "Double Prime (U+2033)",
+    '\u2034': "Triple Prime (U+2034)",
+    '\u2035': "Reversed Prime (U+2035)",
+    '\u2036': "Reversed Double Prime (U+2036)",
+
+    # subtle markers
+    '\u2052': "Commercial Minus (U+2052)",
+    '\u02BE': "Modifier Letter Right Half Ring (U+02BE)",
+    '\uFF0E': "Full-Width Full Stop (U+FF0E)",
+    '\uFF0C': "Full-Width Comma (U+FF0C)",
+    '\uFF07': "Fullwidth Apostrophe (U+FF07)",
+
+    # Commas
+    '\u060C': "Arabic Comma (U+060C)",
+    '\u201A': "Single Low-9 Quotation Mark (U+201A)",
+    '\uFE50': "Small Comma (U+FE50)",
+
+    # Slashes
+    '\u2044': "Fraction Slash (U+2044)",
+    '\u2215': "Division Slash (U+2215)",
+    '\uFF0F': "Fullwidth Solidus (U+FF0F)",
+
+    # Exclamation Marks
+    '\u01C3': "Latin Letter Retroflex Click (U+01C3)",
+    '\uFF01': "Fullwidth Exclamation Mark (U+FF01)",
+
+    # Question Marks
+    '\u037E': "Greek Question Mark (U+037E)",
+    '\uFF1F': "Fullwidth Question Mark (U+FF1F)",
+
+    # Colons / Semicolons
+    '\uFE55': "Small Colon (U+FE55)",
+    '\uFE56': "Small Semicolon (U+FE56)",
+    '\uFF1A': "Fullwidth Colon (U+FF1A)",
+    '\uFF1B': "Fullwidth Semicolon (U+FF1B)",
+
+    # Homoglyphs (Letters - Selected Pairs/Trios)
+    '\u0391': "Greek Capital Letter Alpha (U+0391)",
+    '\u0410': "Cyrillic Capital Letter A (U+0410)",
+    '\u0421': "Cyrillic Capital Letter Es (U+0421)",
+    '\u0395': "Greek Capital Letter Epsilon (U+0395)",
+    '\u0415': "Cyrillic Capital Letter Ie (U+0415)",
+    '\u0397': "Greek Capital Letter Eta (U+0397)",
+    '\u041D': "Cyrillic Capital Letter En (U+041D)",
+    '\u0399': "Greek Capital Letter Iota (U+0399)",
+    '\u0406': "Cyrillic Capital Letter Byelorussian-Ukrainian I (U+0406)",
+    '\u0408': "Cyrillic Capital Letter Je (U+0408)",
+    '\u039A': "Greek Capital Letter Kappa (U+039A)",
+    '\u039C': "Greek Capital Letter Mu (U+039C)",
+    '\u041C': "Cyrillic Capital Letter Em (U+041C)",
+    '\u039F': "Greek Capital Letter Omicron (U+039F)",
+    '\u041E': "Cyrillic Capital Letter O (U+041E)",
+    '\u03A1': "Greek Capital Letter Rho (U+03A1)",
+    '\u0420': "Cyrillic Capital Letter Er (U+0420)",
+    '\u0405': "Cyrillic Capital Letter Dze (U+0405)",
+    '\u03A4': "Greek Capital Letter Tau (U+03A4)",
+    '\u03A7': "Greek Capital Letter Chi (U+03A7)",
+    '\u0425': "Cyrillic Capital Letter Ha (U+0425)",
+    '\u03A5': "Greek Capital Letter Upsilon (U+03A5)",
+    '\u0430': "Cyrillic Small Letter A (U+0430)",
+    '\u0441': "Cyrillic Small Letter Es (U+0441)",
+    '\u0435': "Cyrillic Small Letter Ie (U+0435)",
+    '\u0456': "Cyrillic Small Letter Byelorussian-Ukrainian I (U+0456)",
+    '\u0458': "Cyrillic Small Letter Je (U+0458)",
+    '\u03BF': "Greek Small Letter Omicron (U+03BF)",
+    '\u043E': "Cyrillic Small Letter O (U+043E)",
+    '\u0440': "Cyrillic Small Letter Er (U+0440)",
+    '\u0445': "Cyrillic Small Letter Ha (U+0445)",
+    '\u0443': "Cyrillic Small Letter U (U+0443)",
 }
 
 # The key is the character to be replaced, the value is its "correct" counterpart.
@@ -119,25 +229,159 @@ TYPOGRAPHIC_MARKERS: Dict[str, str] = {
 # These defaults aim to normalize various dashes to hyphen-minus and smart quotes to straight quotes,
 # which is often preferred in programming contexts.
 TYPOGRAPHIC_REPLACEMENTS: Dict[str, str] = {
+    # --- Standard Normalizations (Quotes & Dashes) ---
     # Smart Quotes to Straight Quotes
-    '\u2018': "'",  # Left Single Quotation Mark to Apostrophe (Straight Single Quote)
-    '\u2019': "'",  # Right Single Quotation Mark to Apostrophe (Straight Single Quote)
-    '\u201C': '"',  # Left Double Quotation Mark to Quotation Mark (Straight Double Quote)
-    '\u201D': '"',  # Right Double Quotation Mark to Quotation Mark (Straight Double Quote)
+    '\u2018': "'",  # Left Single Quotation Mark -> Apostrophe
+    '\u2019': "'",  # Right Single Quotation Mark -> Apostrophe
+    '\u201C': '"',  # Left Double Quotation Mark -> Quotation Mark
+    '\u201D': '"',  # Right Double Quotation Mark -> Quotation Mark
 
-    # Dashes to Hyphen-Minus (common in code/plain text contexts)
-    # U+002D (Hyphen-Minus) is the target, so it's not a key here.
-    '\u2010': '\u002D',  # Dedicated Hyphen to Hyphen-Minus
-    '\u2011': '\u002D',  # Non-Breaking Hyphen to Hyphen-Minus
-    '\u2013': '\u002D',  # En Dash to Hyphen-Minus
-    '\u2014': '\u002D',  # Em Dash to Hyphen-Minus
+    # Dashes to Hyphen-Minus (U+002D)
+    '\u2010': '\u002D',  # Hyphen -> Hyphen-Minus
+    '\u2011': '\u002D',  # Non-Breaking Hyphen -> Hyphen-Minus
+    '\u2013': '\u002D',  # En Dash -> Hyphen-Minus
+    '\u2014': '\u002D',  # Em Dash -> Hyphen-Minus
+    '\u2012': '\u002D',  # Figure Dash -> Hyphen-Minus
+    '\u2015': '\u002D',  # Horizontal Bar -> Hyphen-Minus
+    '\u2212': '\u002D',  # Minus Sign -> Hyphen-Minus
+    '\uFE63': '\u002D',  # Small Hyphen-Minus -> Hyphen-Minus
+    '\u2052': '\u002D',  # Commercial Minus -> Hyphen-Minus
 
+    # --- Punctuation Normalizations ---
+    # Ellipsis & Dots
+    ## technically not one to one repalcement - for detection only
     # Horizontal Ellipsis (U+2026) is in TYPOGRAPHIC_MARKERS for detection.
     # Replacing "..." with U+2026 or vice-versa is not a 1-to-1 char replacement
-    # and would require a different mechanism (e.g., regex line processing).
     # So, no default replacement rule for U+2026 here.
+    # '\u2026': '...', # Horizontal Ellipsis -> Three Dots
+    '\u00B7': '.',  # Middle Dot -> Full Stop
+    '\u2219': '.',  # Bullet Operator -> Full Stop
+    '\u2023': '*',  # Triangular Bullet -> Asterisk (common fallback)
+    '\u2024': '.',  # One Dot Leader -> Full Stop
+    '\u2025': '..', # Two Dot Leader -> Two Dots
+    '\u2027': '.',  # Hyphenation Point -> Full Stop
+    '\u3002': '.',  # Ideographic Full Stop -> Full Stop
+    '\uFE52': '.',  # Small Full Stop -> Full Stop
+    '\uFF0E': '.',  # Full-Width Full Stop -> Full Stop
+    # U+2059 (Tricolon) & U+205A (Four Dot Mark) are less common and often don't have a standard single replacement.
 
-    # same for Bullet (U+2022) replaced by '*'
+    # Additional Apostrophes/Quotes/Primes
+    '\u00B4': "'",  # Acute Accent -> Apostrophe
+    '\u02B9': "'",  # Modifier Letter Prime -> Apostrophe
+    '\u02BB': "'",  # Modifier Letter Turned Comma -> Apostrophe
+    '\u02BC': "'",  # Modifier Letter Apostrophe -> Apostrophe
+    '\u02BE': "'",  # Modifier Letter Right Half Ring -> Apostrophe
+    '\u2032': "'",  # Prime -> Apostrophe
+    '\u2033': '"',  # Double Prime -> Quotation Mark
+    '\u2035': "'",  # Reversed Prime -> Apostrophe
+    '\u2036': '"',  # Reversed Double Prime -> Quotation Mark
+    '\uFF07': "'",  # Fullwidth Apostrophe -> Apostrophe
+
+    # Commas
+    '\u060C': ',',  # Arabic Comma -> Comma
+    '\u201A': ',',  # Single Low-9 Quotation Mark -> Comma (can also be a quote, but visually closer to comma)
+    '\uFE50': ',',  # Small Comma -> Comma
+    '\uFF0C': ',',  # Full-Width Comma -> Comma
+
+    # Slashes
+    '\u2044': '/',  # Fraction Slash -> Solidus
+    '\u2215': '/',  # Division Slash -> Solidus
+    '\uFF0F': '/',  # Fullwidth Solidus -> Solidus
+
+    # Exclamation Marks
+    '\u01C3': '!',  # Latin Letter Retroflex Click -> Exclamation Mark
+    '\uFF01': '!',  # Fullwidth Exclamation Mark -> Exclamation Mark
+
+    # Question Marks
+    '\u037E': ';',  # Greek Question Mark -> Semicolon (Its actual equivalent)
+    '\uFF1F': '?',  # Fullwidth Question Mark -> Question Mark
+
+    # Colons / Semicolons
+    '\uFE55': ':',  # Small Colon -> Colon
+    '\uFE56': ';',  # Small Semicolon -> Semicolon
+    '\uFF1A': ':',  # Fullwidth Colon -> Colon
+    '\uFF1B': ';',  # Fullwidth Semicolon -> Semicolon
+
+    # --- Homoglyph Normalizations (to Latin ASCII) ---
+    # A
+    '\u0391': 'A',  # Greek Alpha -> A
+    '\u0410': 'A',  # Cyrillic A -> A
+    # C
+    '\u0421': 'C',  # Cyrillic Es -> C
+    # E
+    '\u0395': 'E',  # Greek Epsilon -> E
+    '\u0415': 'E',  # Cyrillic Ie -> E
+    # H
+    '\u0397': 'H',  # Greek Eta -> H
+    '\u041D': 'H',  # Cyrillic En -> H
+    # I
+    '\u0399': 'I',  # Greek Iota -> I
+    '\u0406': 'I',  # Cyrillic I -> I
+    # J
+    '\u0408': 'J',  # Cyrillic Je -> J
+    # K
+    '\u039A': 'K',  # Greek Kappa -> K
+    # M
+    '\u039C': 'M',  # Greek Mu -> M
+    '\u041C': 'M',  # Cyrillic Em -> M
+    # O
+    '\u039F': 'O',  # Greek Omicron -> O
+    '\u041E': 'O',  # Cyrillic O -> O
+    # P
+    '\u03A1': 'P',  # Greek Rho -> P
+    '\u0420': 'P',  # Cyrillic Er -> P
+    # S
+    '\u0405': 'S',  # Cyrillic Dze -> S
+    # T
+    '\u03A4': 'T',  # Greek Tau -> T
+    # X
+    '\u03A7': 'X',  # Greek Chi -> X
+    '\u0425': 'X',  # Cyrillic Ha -> X
+    # Y
+    '\u03A5': 'Y',  # Greek Upsilon -> Y
+    # a
+    '\u0430': 'a',  # Cyrillic a -> a
+    # c
+    '\u0441': 'c',  # Cyrillic es -> c
+    # e
+    '\u0435': 'e',  # Cyrillic ie -> e
+    # i
+    '\u0456': 'i',  # Cyrillic i -> i
+    # j
+    '\u0458': 'j',  # Cyrillic je -> j
+    # o
+    '\u03BF': 'o',  # Greek omicron -> o
+    '\u043E': 'o',  # Cyrillic o -> o
+    # p
+    '\u0440': 'p',  # Cyrillic er -> p
+    # x
+    '\u0445': 'x',  # Cyrillic ha -> x
+    # y
+    '\u0443': 'y',  # Cyrillic u -> y (often used as a 'y' homoglyph)
+
+    # --- Whitespace Normalizations ---
+    # Replace various spaces with standard space (U+0020)
+    '\u00A0': ' ',  # No-Break Space
+    '\u2000': ' ',  # En Quad
+    '\u2001': ' ',  # Em Quad
+    '\u2002': ' ',  # En Space
+    '\u2003': ' ',  # Em Space
+    '\u2004': ' ',  # Three-Per-Em Space
+    '\u2005': ' ',  # Four-Per-Em Space
+    '\u2006': ' ',  # Six-Per-Em Space
+    '\u2007': ' ',  # Figure Space
+    '\u2008': ' ',  # Punctuation Space
+    '\u2009': ' ',  # Thin Space
+    '\u200A': ' ',  # Hair Space
+    '\u202F': ' ',  # Narrow No-Break Space
+    '\u3000': ' ',  # Ideographic Space
+
+    # Replace zero-width spaces/characters with an empty string (remove them)
+    '\u00AD': '',   # Soft Hyphen
+    '\u200B': '',   # Zero Width Space
+    '\u200C': '',   # Zero Width Non-Joiner
+    '\u200D': '',   # Zero Width Joiner
+    '\uFEFF': '',   # Zero Width No-Break Space / BOM
 }
 
 # Ideographic Variation Selectors
@@ -332,7 +576,7 @@ class UnicodeMarkerDetector:
     # ------------------------------------------------------------------
     @staticmethod
     def _is_likely_text_file(path: str, chunk_size: int = 4096) -> bool:
-        """Heuristic test: null‑byte == binary; else assume text."""
+        """Heuristic test: null-byte == binary; else assume text."""
         try:
             file_size = os.path.getsize(path)
             if file_size == 0:
@@ -389,6 +633,15 @@ class UnicodeMarkerDetector:
                 continue
             replacement: Optional[str] = None
             report: Optional[MarkerReport] = None
+
+            ## \uFE0F holds key mechanism for ensuring that common symbols are rendered as the popular emoji graphics
+            if ch == '\uFE0F':
+                if idx > 0:
+                    if emoji_library_available:
+                        sequence_to_check = text[idx-1:idx+1] # The potential emoji sequence
+                        if emoji.is_emoji(sequence_to_check):
+                            print(f"Emoji detected: {sequence_to_check} at index {idx} in line {line_num}")
+                            continue
 
             # Check for hidden markers
             if ch in MARKER_CHARS_HIDDEN:

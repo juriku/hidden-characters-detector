@@ -2,7 +2,7 @@
 
 A Python utility for detecting and cleaning hidden Unicode markers, invisible characters, typographic markers, and other special characters that may be used as watermarks or cause issues in text files.
 
-**Version:** 1.0.0
+**Version:** 1.1.0
 
 ## website version: [ai-detect.devbox.buzz](https://ai-detect.devbox.buzz)
 
@@ -30,9 +30,32 @@ The tool can operate in detection-only mode or can clean files by removing or re
 
 ## Installation
 
+copy `hidden-characters-detector.py`
+
+add function to `.bashrc` and change `${CLONE_DIR}`
+
+```
+function hidden() {
+  local script="${CLONE_DIR}/hidden-characters-detector/hidden-characters-detector.py"
+  local dir="${1:-.}"
+  shift || true
+  if [[ -f "$dir" ]]; then
+    python $script -c --check-ivs --check-typographic -f "$dir"
+  else
+    python $script -c --check-ivs --check-typographic --ignore-dir ".git" -r -d "$dir" $@
+  fi
+}
+```
+
 ### Prerequisites
 
 - Python 3.12 or higher
+
+# optional
+
+```
+pip install -r requirements.txt
+```
 
 ### Setup
 
