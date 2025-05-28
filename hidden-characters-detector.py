@@ -125,8 +125,6 @@ TYPOGRAPHIC_REPLACEMENTS: Dict[str, str] = {
     '\u201C': '"',  # Left Double Quotation Mark to Quotation Mark (Straight Double Quote)
     '\u201D': '"',  # Right Double Quotation Mark to Quotation Mark (Straight Double Quote)
 
-    '\u2022': '*',  # Bullet to Asterisk (common in code/plain text contexts)
-
     # Dashes to Hyphen-Minus (common in code/plain text contexts)
     # U+002D (Hyphen-Minus) is the target, so it's not a key here.
     '\u2010': '\u002D',  # Dedicated Hyphen to Hyphen-Minus
@@ -138,6 +136,8 @@ TYPOGRAPHIC_REPLACEMENTS: Dict[str, str] = {
     # Replacing "..." with U+2026 or vice-versa is not a 1-to-1 char replacement
     # and would require a different mechanism (e.g., regex line processing).
     # So, no default replacement rule for U+2026 here.
+
+    # same for Bullet (U+2022) replaced by '*'
 }
 
 # Ideographic Variation Selectors
