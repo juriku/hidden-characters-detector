@@ -124,10 +124,10 @@ TYPOGRAPHIC_MARKERS: Dict[str, str] = {
     # '\u2022': "Bullet (U+2022)",
 
     # Smart Quotes / Curly Quotes
-    '\u2018': "Left Single Quotation Mark (U+2018)",
-    '\u2019': "Right Single Quotation Mark (U+2019)",
-    '\u201C': "Left Double Quotation Mark (U+201C)",
-    '\u201D': "Right Double Quotation Mark (U+201D)",
+    # '\u2018': "Left Single Quotation Mark (U+2018)",
+    # '\u2019': "Right Single Quotation Mark (U+2019)",
+    # '\u201C': "Left Double Quotation Mark (U+201C)",
+    # '\u201D': "Right Double Quotation Mark (U+201D)",
 
     # Periods / Dots
     '\u00B7': "Middle Dot (U+00B7)",
@@ -231,10 +231,10 @@ TYPOGRAPHIC_MARKERS: Dict[str, str] = {
 TYPOGRAPHIC_REPLACEMENTS: Dict[str, str] = {
     # --- Standard Normalizations (Quotes & Dashes) ---
     # Smart Quotes to Straight Quotes
-    '\u2018': "'",  # Left Single Quotation Mark -> Apostrophe
-    '\u2019': "'",  # Right Single Quotation Mark -> Apostrophe
-    '\u201C': '"',  # Left Double Quotation Mark -> Quotation Mark
-    '\u201D': '"',  # Right Double Quotation Mark -> Quotation Mark
+    # '\u2018': "'",  # Left Single Quotation Mark -> Apostrophe
+    # '\u2019': "'",  # Right Single Quotation Mark -> Apostrophe
+    # '\u201C': '"',  # Left Double Quotation Mark -> Quotation Mark
+    # '\u201D': '"',  # Right Double Quotation Mark -> Quotation Mark
 
     # Dashes to Hyphen-Minus (U+002D)
     '\u2010': '\u002D',  # Hyphen -> Hyphen-Minus
