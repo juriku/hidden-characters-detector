@@ -6,6 +6,7 @@ import os
 import re
 import sys
 import tempfile
+import itertools
 import time
 from dataclasses import dataclass
 from typing import Dict, List, Optional, Set, Tuple
@@ -30,7 +31,7 @@ __all__ = [
 ]
 
 # --- Configuration ---
-VERSION = "1.1.0"
+VERSION = "1.2.0"
 
 # --- Marker Definitions ---
 # Define common hidden characters often used for watermarking or causing issues
@@ -124,10 +125,10 @@ TYPOGRAPHIC_MARKERS: Dict[str, str] = {
     # '\u2022': "Bullet (U+2022)",
 
     # Smart Quotes / Curly Quotes
-    # '\u2018': "Left Single Quotation Mark (U+2018)",
-    # '\u2019': "Right Single Quotation Mark (U+2019)",
-    # '\u201C': "Left Double Quotation Mark (U+201C)",
-    # '\u201D': "Right Double Quotation Mark (U+201D)",
+    '\u2018': "Left Single Quotation Mark (U+2018)",
+    '\u2019': "Right Single Quotation Mark (U+2019)",
+    '\u201C': "Left Double Quotation Mark (U+201C)",
+    '\u201D': "Right Double Quotation Mark (U+201D)",
 
     # Periods / Dots
     '\u00B7': "Middle Dot (U+00B7)",
@@ -222,6 +223,29 @@ TYPOGRAPHIC_MARKERS: Dict[str, str] = {
     '\u0443': "Cyrillic Small Letter U (U+0443)",
 }
 
+# Characters commonly auto-edited by Microsoft Word
+WORD_COMMON_CHARS: Set[str] = {
+    # Smart quotes
+    '\u2018',  # Left Single Quotation Mark
+    '\u2019',  # Right Single Quotation Mark
+    '\u201C',  # Left Double Quotation Mark
+    '\u201D',  # Right Double Quotation Mark
+
+    # Dashes
+    '\u2013',  # En Dash
+    '\u2014',  # Em Dash
+
+    # Other typography
+    '\u2026',  # Horizontal Ellipsis
+    '\u00A0',  # Non-Breaking Space
+    '\u2022',  # Bullet
+
+    # Additional Word auto-corrections
+    '\u201A',  # Single Low-9 Quotation Mark
+    '\u201E',  # Double Low-9 Quotation Mark
+    '\u2011',  # Non-Breaking Hyphen
+}
+
 # The key is the character to be replaced, the value is its "correct" counterpart.
 # This is ONLY active if typographic checks are enabled (default) AND --clean is used.
 # If a character is in TYPOGRAPHIC_MARKERS but not here, it will only be detected, not replaced.
@@ -231,10 +255,10 @@ TYPOGRAPHIC_MARKERS: Dict[str, str] = {
 TYPOGRAPHIC_REPLACEMENTS: Dict[str, str] = {
     # --- Standard Normalizations (Quotes & Dashes) ---
     # Smart Quotes to Straight Quotes
-    # '\u2018': "'",  # Left Single Quotation Mark -> Apostrophe
-    # '\u2019': "'",  # Right Single Quotation Mark -> Apostrophe
-    # '\u201C': '"',  # Left Double Quotation Mark -> Quotation Mark
-    # '\u201D': '"',  # Right Double Quotation Mark -> Quotation Mark
+    '\u2018': "'",  # Left Single Quotation Mark -> Apostrophe
+    '\u2019': "'",  # Right Single Quotation Mark -> Apostrophe
+    '\u201C': '"',  # Left Double Quotation Mark -> Quotation Mark
+    '\u201D': '"',  # Right Double Quotation Mark -> Quotation Mark
 
     # Dashes to Hyphen-Minus (U+002D)
     '\u2010': '\u002D',  # Hyphen -> Hyphen-Minus
@@ -249,14 +273,11 @@ TYPOGRAPHIC_REPLACEMENTS: Dict[str, str] = {
 
     # --- Punctuation Normalizations ---
     # Ellipsis & Dots
-    ## technically not one to one repalcement - for detection only
-    # Horizontal Ellipsis (U+2026) is in TYPOGRAPHIC_MARKERS for detection.
-    # Replacing "..." with U+2026 or vice-versa is not a 1-to-1 char replacement
-    # So, no default replacement rule for U+2026 here.
-    # '\u2026': '...', # Horizontal Ellipsis -> Three Dots
+    '\u2026': '...', # Horizontal Ellipsis -> Three Dots
     '\u00B7': '.',  # Middle Dot -> Full Stop
     '\u2219': '.',  # Bullet Operator -> Full Stop
-    '\u2023': '*',  # Triangular Bullet -> Asterisk (common fallback)
+    '\u2022': '*',  # Bullet -> Asterisk
+    '\u2023': '*',  # Triangular Bullet -> Asterisk
     '\u2024': '.',  # One Dot Leader -> Full Stop
     '\u2025': '..', # Two Dot Leader -> Two Dots
     '\u2027': '.',  # Hyphenation Point -> Full Stop
@@ -558,6 +579,7 @@ class UnicodeMarkerDetector:
         clean_file: bool = False,
         check_typographic: bool = False,
         check_ivs: bool = False,
+        exclude_word_chars: bool = False,
         user_excluded_chars: Optional[Set[str]] = None,
         report_mode: str = "normal",
         logger: Optional[SimpleLogger] = None,
@@ -565,11 +587,16 @@ class UnicodeMarkerDetector:
         self.clean_file = clean_file
         self.check_typographic = check_typographic
         self.check_ivs = check_ivs
+        self.exclude_word_chars = exclude_word_chars
         self.user_excluded_chars: Set[str] = set(user_excluded_chars or [])
         self.report_mode = report_mode  # normal | quiet | verbose
         self.multiple_files = False
         self.log = logger or SimpleLogger()
         self._results: Dict[str, FileProcessResult] = {}
+
+        # Add Word common characters if --word flag is used
+        if self.exclude_word_chars:
+            self.user_excluded_chars.update(WORD_COMMON_CHARS)
 
     # ------------------------------------------------------------------
     #  Low-level helpers
@@ -929,6 +956,7 @@ class UnicodeMarkerDetector:
             clean_file=args.clean,
             check_typographic=args.check_typographic,
             check_ivs=args.check_ivs,
+            exclude_word_chars=args.word,
             user_excluded_chars=set(getattr(args, "excluded_chars", [])),
             report_mode=args.report_mode,
             logger=logger,
@@ -970,6 +998,8 @@ def build_arg_parser() -> argparse.ArgumentParser:
     if not typo_replacement_examples: typo_replacement_examples = "  (No rules defined in TYPOGRAPHIC_REPLACEMENTS)"
     ivs_example_start_char, ivs_example_start_desc = list(IDEOGRAPHIC_VS_MARKERS.items())[0] if IDEOGRAPHIC_VS_MARKERS else ("U+E0100", "IVS-17")
     ivs_example_end_char, ivs_example_end_desc = list(IDEOGRAPHIC_VS_MARKERS.items())[-1] if IDEOGRAPHIC_VS_MARKERS else ("U+E01EF", "IVS-256")
+    word_chars_examples = "\n".join([f"  '{ch}' : {desc}" for ch, desc in enumerate(itertools.islice(WORD_COMMON_CHARS, 10))])
+
 
     parser = argparse.ArgumentParser(
         description="Search for watermarks, hidden, typographic, and IVS markers in text files.",
@@ -980,6 +1010,7 @@ Examples:
   %(prog)s -f myfile.txt --check-typographic --exclude-char U+2013 --no-color
   %(prog)s -d project/ -r --ignore-dir .git -c -y
   %(prog)s -d docs/ -r -c --check-typographic --check-ivs
+  %(prog)s -f document.txt --word  # Exclude Word auto-corrections
 
 Detected by Default:
   - Hidden Markers: Removed by -c.
@@ -991,6 +1022,9 @@ Optional Checks:
   --check-ivs : Enables check for Ideographic Variation Selectors (VS17-VS256).
     Example Range: '{ivs_example_start_char}' ({ivs_example_start_desc}) to '{ivs_example_end_char}' ({ivs_example_end_desc})
     IVS are REMOVED if --clean and --check-ivs are active.
+
+Word Common Characters (excluded with --word):
+{word_chars_examples}
 
 Typographic Replacements (active if -c AND --check-typographic are used):
 {typo_replacement_examples}
@@ -1025,6 +1059,9 @@ Output Coloring: Use --no-color to disable. Respects NO_COLOR env var.
     parser.add_argument("--exclude-char", action="append", dest="excluded_chars_str",
                       default=[], metavar="U+XXXX or Char",
                       help="Unicode character(s) to exclude from detection/cleaning. Can be used multiple times.")
+
+    parser.add_argument("--word", action="store_true",
+                      help="Exclude characters commonly auto-corrected by Microsoft Word (smart quotes, dashes, etc.).")
 
     parser.add_argument("--fail", action="store_true",
                       help="Exit with status code 1 if any specified markers are detected/changed.")
@@ -1083,6 +1120,7 @@ def main(argv: Optional[List[str]] = None) -> None:  # noqa: C901 (long, but str
         clean_file=args.clean,
         check_typographic=args.check_typographic,
         check_ivs=args.check_ivs,
+        exclude_word_chars=args.word,
         user_excluded_chars=excluded_chars,
         report_mode=args.report_mode,
         logger=log,

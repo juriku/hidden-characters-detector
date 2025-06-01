@@ -2,7 +2,7 @@
 
 A Python utility for detecting and cleaning hidden Unicode markers, invisible characters, typographic markers, and other special characters that may be used as watermarks or cause issues in text files.
 
-**Version:** 1.1.0
+**Version:** 1.2.0
 
 ## website version: [ai-detect.devbox.buzz](https://ai-detect.devbox.buzz)
 
@@ -65,14 +65,17 @@ add function to `.bashrc` and change `${CLONE_DIR}`
 
 ```
 function hidden() {
-  local script="${CLONE_DIR}/hidden-characters-detector/hidden-characters-detector.py"
-  local dir="${1:-.}"
-  shift || true
-  if [[ -f "$dir" ]]; then
-    python $script -c --check-ivs --check-typographic -f "$dir"
-  else
-    python $script -c --check-ivs --check-typographic --ignore-dir ".git" -r -d "$dir" $@
+  local script_path="${CLONE_DIR}/hidden-characters-detector/hidden-characters-detector.py"
+  local target_opt_array=("-r" "-d")
+  local target_val="."
+  if [[ -n "$1" ]]; then
+    if [[ -f "$1" ]]; then
+      target_opt_array=("-f"); target_val="$1"; shift
+    elif [[ -d "$1" ]]; then
+      target_val="$1"; shift
+    fi
   fi
+  python "$script" -c --check-ivs --check-typographic --ignore-dir ".git" --ignore-dir ".terraform" "${target_opt_array[@]}" "$target_val" "$@"
 }
 ```
 
@@ -175,6 +178,10 @@ When enabled with `--check-typographic`, detects:
 - En Dash (U+2013)
 - Em Dash (U+2014)
 - Horizontal Ellipsis (U+2026)
+
+### Disable common Microsoft Word character replacements
+
+When enabled with `--word`, excludes common Microsoft Word typographic replacements that are automatically converted in Word.
 
 ### Ideographic Variation Selectors (Optional)
 

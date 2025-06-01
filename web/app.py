@@ -174,15 +174,21 @@ def index():
 
     if request.method == 'GET':
         form_data = {
-            'clean_file': True, 'check_typographic': True, 'check_ivs': True,
-            'excluded_chars': '', 'report_mode': 'normal', 'text_input': ''
+            'clean_file': True,
+            'check_typographic': True,
+            'check_ivs': True,
+            'exclude_word_chars': False,
+            'excluded_chars': '',
+            'report_mode': 'normal',
+            'text_input': ''
         }
         original_text_input_value = ''
     else: # POST request
         form_data = {
-            'clean_file': 'clean_file' in request.form,
-            'check_typographic': 'check_typographic' in request.form,
-            'check_ivs': 'check_ivs' in request.form,
+         'clean_file': bool('clean_file' in request.form),
+            'check_typographic': bool('check_typographic' in request.form),
+            'check_ivs': bool('check_ivs' in request.form),
+            'exclude_word_chars': bool('exclude_word_chars' in request.form),
             'excluded_chars': request.form.get('excluded_chars', ''),
             'report_mode': request.form.get('report_mode', 'normal'),
             'text_input': request.form.get('text_input', '')
@@ -240,7 +246,7 @@ def index():
 
             detector = UnicodeMarkerDetector(
                 clean_file=form_data['clean_file'], check_typographic=form_data['check_typographic'],
-                check_ivs=form_data['check_ivs'], user_excluded_chars=excluded_chars_set,
+                check_ivs=form_data['check_ivs'], exclude_word_chars=form_data['exclude_word_chars'], user_excluded_chars=excluded_chars_set,
                 report_mode=form_data['report_mode'], logger=web_logger
             )
 

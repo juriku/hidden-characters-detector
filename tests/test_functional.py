@@ -210,7 +210,7 @@ class TestFunctional(unittest.TestCase):
     def test_version_output(self):
         result = run_script(["--version"])
         self.assertEqual(result.returncode, 0)
-        self.assertIn("hidden-characters-detector.py 1.1.0", result.stdout) # Adjust to actual script name in output
+        self.assertIn("hidden-characters-detector.py 1.2.0", result.stdout) # Adjust to actual script name in output
 
 if __name__ == "__main__":
     unittest.main()

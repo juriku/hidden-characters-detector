@@ -651,6 +651,14 @@
                             </div>
                         </div>
                         <div class="row" style="margin-top: 16px;">
+                            <div class="col s12">
+                                <div class="checkbox-group">
+                                    <input type="checkbox" id="exclude_word_chars" name="exclude_word_chars" value="true" {% if form_data.exclude_word_chars %}checked="checked"{% endif %} />
+                                    <label for="exclude_word_chars">Exclude Word Characters (smart quotes, dashes, etc. commonly auto-corrected by Microsoft Word)</label>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="row" style="margin-top: 16px;">
                             <div class="col s12 m6 form-group">
                                 <label for="excluded_chars">Exclude Characters</label>
                                 <input type="text" id="excluded_chars" name="excluded_chars" value="{{ form_data.excluded_chars }}" placeholder="e.g., U+200B,U+FEFF">
