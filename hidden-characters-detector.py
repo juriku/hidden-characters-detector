@@ -1139,7 +1139,7 @@ def main(argv: Optional[List[str]] = None) -> None:  # noqa: C901 (long, but str
             log.debug("Created temporary file from stdin: %s", original_stdin_tmp)
         except Exception as e:
             log.error("Error reading from stdin: %s", e)
-            raise SystemExit(1)
+            raise SystemExit(1) from e
     else:
         files_to_process = detector.find_files_to_process(
             file_path=args.file,
