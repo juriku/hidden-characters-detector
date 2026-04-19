@@ -18,9 +18,10 @@ The tool can operate in detection-only mode or can clean files by removing or re
 
 ## Features
 
-- Scan individual files, entire directories (with recursive option), or standard input
-- Detect a comprehensive set of hidden Unicode markers
-- Optional detection of typographic markers and ideographic variation selectors
+- Scan individual files, entire directories (recursive by default), or standard input
+- When no input is given, scans the current directory by default
+- Detect a comprehensive set of hidden Unicode markers, typographic markers, and ideographic variation selectors (all enabled by default)
+- Honors `.gitignore` files (including nested ones) out of the box; `.git/` is skipped by default
 - Clean files by removing hidden markers or replacing typographic markers with ASCII equivalents
 - Color-coded output for easy visualization
 - Detailed reporting with customizable verbosity
@@ -34,11 +35,14 @@ The tool can operate in detection-only mode or can clean files by removing or re
 
 - Python 3.12 or higher
 
-### optional
+### Dependencies
 
 ```
 pip install -r requirements.txt
 ```
+
+- `emoji` (optional) - suppresses false positives when `\uFE0F` forms a real emoji sequence
+- `pathspec` (optional) - required for `.gitignore` support; without it, `.gitignore` files are silently ignored
 
 ### Setup
 
@@ -49,24 +53,30 @@ pip install -r requirements.txt
 ## Usage
 
 ```
-./hidden-characters-detector.py --clean --check-ivs --check-typographic -r -d .
+# Scan the current directory recursively - recursive, typographic, and IVS checks are all on by default
+./hidden-characters-detector.py
 
-./hidden-characters-detector.py [-h] (-f FILE | -d DIR | --stdin) [-r]
-                             [--ignore-dir DIRNAME] [--pattern PATTERN]
+# Clean everything in the current directory (honors .gitignore)
+./hidden-characters-detector.py -c -y
+
+./hidden-characters-detector.py [-h] [-f FILE | -d [DIR] | --stdin] [-r | --no-recursive]
+                             [--ignore-dir DIRNAME] [--no-gitignore] [--pattern PATTERN]
                              [-c] [-y] [--exclude-char U+XXXX or Char]
-                             [--fail] [--check-typographic] [--check-ivs]
+                             [--word] [--fail]
+                             [--check-typographic | --no-check-typographic]
+                             [--check-ivs | --no-check-ivs]
                              [--no-color] [--report-file FILE]
                              [--report-mode {normal,quiet,verbose}]
                              [--log-level {DEBUG,INFO,WARNING,ERROR}]
                              [--log-file FILE] [--version]
 ```
 
-add function to `.bashrc` and change `${CLONE_DIR}`
+Running with no arguments defaults to `-d .` (scan the current directory). Add a function to `.bashrc` and change `${CLONE_DIR}`:
 
 ```
 function hidden() {
-  local script_path="${CLONE_DIR}/hidden-characters-detector/hidden-characters-detector.py"
-  local target_opt_array=("-r" "-d")
+  local script="${CLONE_DIR}/hidden-characters-detector/hidden-characters-detector.py"
+  local target_opt_array=("-d")
   local target_val="."
   if [[ -n "$1" ]]; then
     if [[ -f "$1" ]]; then
@@ -75,7 +85,7 @@ function hidden() {
       target_val="$1"; shift
     fi
   fi
-  python "$script" -c --check-ivs --check-typographic --ignore-dir ".git" --ignore-dir ".terraform" "${target_opt_array[@]}" "$target_val" "$@"
+  python "$script" -c --ignore-dir ".terraform" "${target_opt_array[@]}" "$target_val" "$@"
 }
 ```
 
@@ -83,21 +93,23 @@ function hidden() {
 
 ### Input Options
 - `-f FILE, --file FILE`: Path to a single file to check
-- `-d DIR, --dir DIR`: Path to a directory to check
+- `-d [DIR], --dir [DIR]`: Path to a directory to check. If omitted, defaults to `.`. If no input flag is given at all, the script also defaults to scanning the current directory.
 - `--stdin`: Read from standard input
 
 ### Directory Options
-- `-r, --recursive`: Recursively search in subdirectories (used with -d/--dir)
-- `--ignore-dir DIRNAME`: Directory name(s) to ignore during recursive scan (e.g., .git)
-- `--pattern PATTERN`: File pattern(s) to include (e.g., *.py)
+- `-r, --recursive` / `--no-recursive`: Recursively search subdirectories. **Default: on.**
+- `--ignore-dir DIRNAME`: Directory name(s) to ignore during recursive scan. `.git` is always ignored; use this flag to add more (repeatable).
+- `--no-gitignore`: Do not honor `.gitignore` files encountered during the scan. By default, nested `.gitignore` files are applied to their own subtree.
+- `--pattern PATTERN`: File pattern(s) to include (e.g., `*.py`)
 
 ### Processing Options
 - `-c, --clean`: Automatically clean/replace detected markers
 - `-y, --yes`: Automatically confirm 'yes' to prompts when cleaning files
 - `--exclude-char U+XXXX or Char`: Unicode character(s) to exclude from detection/cleaning
+- `--word`: Exclude characters commonly auto-corrected by Microsoft Word
 - `--fail`: Exit with status code 1 if any specified markers are detected/changed
-- `--check-typographic`: Enable the check for specified typographic markers
-- `--check-ivs`: Enable the check for Ideographic Variation Selectors
+- `--check-typographic` / `--no-check-typographic`: Detect typographic markers. **Default: on.**
+- `--check-ivs` / `--no-check-ivs`: Detect Ideographic Variation Selectors. **Default: on.**
 
 ### Output Options
 - `--no-color`: Disable colored output
@@ -110,38 +122,48 @@ function hidden() {
 
 ### Basic Usage
 
-Check a single file for hidden markers:
+Scan the current directory (recursive, all checks on, `.git` and `.gitignore` entries skipped):
+```
+./hidden-characters-detector.py
+```
+
+Check a single file:
 ```
 ./hidden-characters-detector.py -f myfile.txt
 ```
 
-Check a directory recursively for hidden markers:
+Top-level only (do not descend into subdirectories):
 ```
-./hidden-characters-detector.py -d project/ -r
+./hidden-characters-detector.py -d project/ --no-recursive
 ```
 
 ### Cleaning Files
 
-Check and clean a file (removing hidden markers):
+Check and clean a file (removing hidden markers, replacing typographic ones):
 ```
 ./hidden-characters-detector.py -f myfile.txt -c
 ```
 
-Check and clean a directory with automatic confirmation:
+Clean a directory with automatic confirmation:
 ```
-./hidden-characters-detector.py -d project/ -r -c -y
+./hidden-characters-detector.py -d project/ -c -y
 ```
 
 ### Advanced Usage
 
-Check for both hidden and typographic markers, excluding en-dashes:
+Detect hidden markers only (skip typographic and IVS checks), and exclude en-dashes:
 ```
-./hidden-characters-detector.py -f myfile.txt --check-typographic --exclude-char U+2013
+./hidden-characters-detector.py -f myfile.txt --no-check-typographic --no-check-ivs --exclude-char U+2013
 ```
 
-Check for all types of markers and clean a directory:
+Scan without honoring `.gitignore`:
 ```
-./hidden-characters-detector.py -d docs/ -r -c --check-typographic --check-ivs
+./hidden-characters-detector.py --no-gitignore
+```
+
+Ignore extra directories in addition to `.git`:
+```
+./hidden-characters-detector.py --ignore-dir node_modules --ignore-dir .terraform
 ```
 
 Pipe content to check for markers:
@@ -153,7 +175,7 @@ cat myfile.txt | ./hidden-characters-detector.py --stdin
 
 Fail if any markers are detected (useful for CI/CD pipelines):
 ```
-./hidden-characters-detector.py -d src/ -r --fail
+./hidden-characters-detector.py -d src/ --fail
 ```
 
 ## What Gets Detected
@@ -171,21 +193,26 @@ The tool detects a comprehensive set of hidden markers, including:
 - Variation selectors
 - And many more
 
-### Typographic Markers (Optional)
+### Typographic Markers (Detected by Default)
 
-When enabled with `--check-typographic`, detects:
+Enabled by default; disable with `--no-check-typographic`. Detects:
 - Smart/curly quotes (U+2018, U+2019, U+201C, U+201D)
 - En Dash (U+2013)
 - Em Dash (U+2014)
 - Horizontal Ellipsis (U+2026)
+- Cyrillic/Greek homoglyphs and many more
 
 ### Disable common Microsoft Word character replacements
 
 When enabled with `--word`, excludes common Microsoft Word typographic replacements that are automatically converted in Word.
 
-### Ideographic Variation Selectors (Optional)
+### Ideographic Variation Selectors (Detected by Default)
 
-When enabled with `--check-ivs`, detects Ideographic Variation Selectors (VS17-VS256, U+E0100 to U+E01EF).
+Enabled by default; disable with `--no-check-ivs`. Detects Ideographic Variation Selectors (VS17-VS256, U+E0100 to U+E01EF).
+
+### `.gitignore` Handling (On by Default)
+
+By default the scanner loads a `.gitignore` from the root directory and any nested subdirectories, applying each file's patterns within its own subtree (matching Git's semantics, including negation with `!`). Disable with `--no-gitignore`. Requires the `pathspec` package - without it, `.gitignore` files are silently skipped.
 
 ## Cleaning Behavior
 
