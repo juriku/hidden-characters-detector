@@ -15,10 +15,13 @@ class TestInputValidation(unittest.TestCase):
     def tearDown(self):
         shutil.rmtree(self.test_dir)
 
-    def test_no_input_source(self):
-        result = run_script([])
-        self.assertNotEqual(result.returncode, 0) # argparse typically exits with 2
-        self.assertIn("error: one of the arguments -f/--file -d/--dir --stdin is required", result.stderr.lower())
+    def test_no_input_source_defaults_to_cwd(self):
+        # No input flag defaults to scanning the current working directory.
+        # setUp already placed sample.txt in self.test_dir.
+        result = run_script([], cwd=self.test_dir)
+        self.assertEqual(result.returncode, 0)
+        self.assertIn("SCAN SUMMARY", result.stdout)
+        self.assertIn("NO MARKERS FOUND", result.stdout)
 
     def test_mutually_exclusive_inputs(self):
         result = run_script(["-f", str(self.sample_file), "-d", self.test_dir])

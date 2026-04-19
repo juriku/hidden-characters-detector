@@ -212,5 +212,202 @@ class TestFunctional(unittest.TestCase):
         self.assertEqual(result.returncode, 0)
         self.assertIn("hidden-characters-detector.py 1.2.0", result.stdout) # Adjust to actual script name in output
 
+
+class TestGitignore(unittest.TestCase):
+
+    def setUp(self):
+        self.test_dir = tempfile.mkdtemp(prefix="um_gitignore_")
+
+    def tearDown(self):
+        shutil.rmtree(self.test_dir)
+
+    def test_gitignore_honored_by_default(self):
+        root = Path(self.test_dir) / "proj"
+        root.mkdir()
+        sub = root / "sub"
+        sub.mkdir()
+        create_temp_file(root, ".gitignore", "secret.txt\nsub/\n")
+        create_temp_file(root, "secret.txt", f"S{ZERO_WIDTH_SPACE}")
+        create_temp_file(root, "keep.txt", f"K{ZERO_WIDTH_SPACE}")
+        create_temp_file(sub, "hidden.txt", f"H{ZERO_WIDTH_SPACE}")
+
+        result = run_script(["-d", str(root), "-r"])
+        self.assertEqual(result.returncode, 0)
+        self.assertIn("keep.txt", result.stdout)
+        self.assertNotIn("secret.txt", result.stdout)
+        self.assertNotIn("hidden.txt", result.stdout)
+
+    def test_no_gitignore_flag_disables_filtering(self):
+        root = Path(self.test_dir) / "proj"
+        root.mkdir()
+        sub = root / "sub"
+        sub.mkdir()
+        create_temp_file(root, ".gitignore", "secret.txt\nsub/\n")
+        create_temp_file(root, "secret.txt", f"S{ZERO_WIDTH_SPACE}")
+        create_temp_file(sub, "hidden.txt", f"H{ZERO_WIDTH_SPACE}")
+
+        result = run_script(["-d", str(root), "-r", "--no-gitignore"])
+        self.assertEqual(result.returncode, 0)
+        self.assertIn("secret.txt", result.stdout)
+        self.assertIn("hidden.txt", result.stdout)
+
+    def test_nested_gitignore_applies_only_within_subtree(self):
+        # A nested .gitignore that ignores "test" inside ./test2 must NOT
+        # affect ./test at the root — only ./test2/test should be skipped.
+        root = Path(self.test_dir) / "proj"
+        root.mkdir()
+        test2 = root / "test2"
+        test2.mkdir()
+        create_temp_file(test2, ".gitignore", "test\n")
+        create_temp_file(root, "test", f"RootTest{ZERO_WIDTH_SPACE}")
+        create_temp_file(test2, "test", f"SubTest{ZERO_WIDTH_SPACE}")
+        create_temp_file(test2, "keep.txt", f"SubKeep{ZERO_WIDTH_SPACE}")
+
+        result = run_script(["-d", str(root), "-r"])
+        self.assertEqual(result.returncode, 0)
+        # Root file named "test" is kept (nested .gitignore has no reach here).
+        self.assertIn(f"File: {root}/test\n", result.stdout)
+        # Sibling in the nested dir is scanned.
+        self.assertIn(f"File: {test2}/keep.txt", result.stdout)
+        # The nested "test" file is ignored.
+        self.assertNotIn(f"File: {test2}/test\n", result.stdout)
+
+    def test_deeply_nested_gitignore_stacks(self):
+        # Patterns from each level must stack: root ignores *.tmp,
+        # a/.gitignore adds "drop.txt", a/b/.gitignore adds "local/".
+        root = Path(self.test_dir) / "proj"
+        root.mkdir()
+        a = root / "a"
+        a.mkdir()
+        b = a / "b"
+        b.mkdir()
+        local_dir = b / "local"
+        local_dir.mkdir()
+
+        create_temp_file(root, ".gitignore", "*.tmp\n")
+        create_temp_file(a, ".gitignore", "drop.txt\n")
+        create_temp_file(b, ".gitignore", "local/\n")
+
+        create_temp_file(root, "root_ok.txt", f"RO{ZERO_WIDTH_SPACE}")
+        create_temp_file(a, "drop.txt", f"D{ZERO_WIDTH_SPACE}")
+        create_temp_file(a, "keep.txt", f"KA{ZERO_WIDTH_SPACE}")
+        create_temp_file(b, "skip.tmp", f"S{ZERO_WIDTH_SPACE}")
+        create_temp_file(b, "keep.txt", f"KB{ZERO_WIDTH_SPACE}")
+        create_temp_file(local_dir, "hidden.txt", f"H{ZERO_WIDTH_SPACE}")
+
+        result = run_script(["-d", str(root), "-r"])
+        self.assertEqual(result.returncode, 0)
+        self.assertIn(f"{root}/root_ok.txt", result.stdout)
+        self.assertIn(f"{a}/keep.txt", result.stdout)
+        self.assertIn(f"{b}/keep.txt", result.stdout)
+        self.assertNotIn("drop.txt", result.stdout)          # a/drop.txt ignored
+        self.assertNotIn("skip.tmp", result.stdout)          # *.tmp from root
+        self.assertNotIn("hidden.txt", result.stdout)        # local/ from b
+
+    def test_gitignore_negation_pattern(self):
+        root = Path(self.test_dir) / "proj"
+        root.mkdir()
+        create_temp_file(root, ".gitignore", "*.log\n!keep.log\n")
+        create_temp_file(root, "drop.log", f"D{ZERO_WIDTH_SPACE}")
+        create_temp_file(root, "keep.log", f"K{ZERO_WIDTH_SPACE}")
+
+        result = run_script(["-d", str(root), "-r"])
+        self.assertEqual(result.returncode, 0)
+        self.assertIn("keep.log", result.stdout)
+        self.assertNotIn("drop.log", result.stdout)
+
+    def test_gitignore_non_recursive_top_level_only(self):
+        # Explicit --no-recursive: sub/ must not be entered at all,
+        # and top-level .gitignore still applies.
+        root = Path(self.test_dir) / "proj"
+        root.mkdir()
+        sub = root / "sub"
+        sub.mkdir()
+        create_temp_file(root, ".gitignore", "secret.txt\n")
+        create_temp_file(root, "secret.txt", f"S{ZERO_WIDTH_SPACE}")
+        create_temp_file(root, "keep.txt", f"K{ZERO_WIDTH_SPACE}")
+        create_temp_file(sub, "deep.txt", f"D{ZERO_WIDTH_SPACE}")
+
+        result = run_script(["-d", str(root), "--no-recursive"])
+        self.assertEqual(result.returncode, 0)
+        self.assertIn("keep.txt", result.stdout)
+        self.assertNotIn("secret.txt", result.stdout)
+        self.assertNotIn("deep.txt", result.stdout)
+
+
+class TestDefaultFlags(unittest.TestCase):
+
+    def setUp(self):
+        self.test_dir = tempfile.mkdtemp(prefix="um_defaults_")
+
+    def tearDown(self):
+        shutil.rmtree(self.test_dir)
+
+    def test_recursive_is_default(self):
+        # No -r flag: subdir files must still be scanned.
+        # Need >1 file so per-file "File: ..." headers appear in output.
+        root = Path(self.test_dir) / "proj"
+        root.mkdir()
+        sub = root / "nested"
+        sub.mkdir()
+        create_temp_file(root, "top.txt", f"Top{ZERO_WIDTH_SPACE}")
+        create_temp_file(sub, "deep.txt", f"Deep{ZERO_WIDTH_SPACE}")
+
+        result = run_script(["-d", str(root)])
+        self.assertEqual(result.returncode, 0)
+        self.assertIn(f"{sub}/deep.txt", result.stdout)
+        self.assertIn("Files processed: 2", result.stdout)
+
+    def test_no_recursive_opt_out(self):
+        root = Path(self.test_dir) / "proj"
+        root.mkdir()
+        sub = root / "nested"
+        sub.mkdir()
+        create_temp_file(root, "top.txt", f"Top{ZERO_WIDTH_SPACE}")
+        create_temp_file(sub, "deep.txt", f"Deep{ZERO_WIDTH_SPACE}")
+
+        result = run_script(["-d", str(root), "--no-recursive"])
+        self.assertEqual(result.returncode, 0)
+        self.assertIn("Files processed: 1", result.stdout)
+        self.assertNotIn("deep.txt", result.stdout)
+
+    def test_check_typographic_is_default(self):
+        # Em dash detected without passing --check-typographic.
+        test_file = create_temp_file(self.test_dir, "typo.txt", f"dash{EM_DASH}here")
+        result = run_script(["-f", str(test_file)])
+        self.assertEqual(result.returncode, 0)
+        self.assertIn("Em Dash (U+2014)", result.stdout)
+
+    def test_no_check_typographic_opt_out(self):
+        test_file = create_temp_file(self.test_dir, "typo.txt", f"dash{EM_DASH}here")
+        result = run_script(["-f", str(test_file), "--no-check-typographic"])
+        self.assertEqual(result.returncode, 0)
+        self.assertIn("NO MARKERS FOUND", result.stdout)
+
+    def test_check_ivs_is_default(self):
+        test_file = create_temp_file(self.test_dir, "ivs.txt", f"IVS{IDEOGRAPHIC_VS}char")
+        result = run_script(["-f", str(test_file)])
+        self.assertEqual(result.returncode, 0)
+        self.assertIn("Ideographic Variation Selector", result.stdout)
+
+    def test_no_check_ivs_opt_out(self):
+        test_file = create_temp_file(self.test_dir, "ivs.txt", f"IVS{IDEOGRAPHIC_VS}char")
+        result = run_script(["-f", str(test_file), "--no-check-ivs"])
+        self.assertEqual(result.returncode, 0)
+        self.assertIn("NO MARKERS FOUND", result.stdout)
+
+    def test_git_dir_ignored_by_default(self):
+        root = Path(self.test_dir) / "proj"
+        root.mkdir()
+        git_dir = root / ".git"
+        git_dir.mkdir()
+        create_temp_file(git_dir, "config", f"inside-git{ZERO_WIDTH_SPACE}")
+        create_temp_file(root, "code.txt", f"Code{ZERO_WIDTH_SPACE}")
+
+        result = run_script(["-d", str(root)])
+        self.assertEqual(result.returncode, 0)
+        self.assertIn("Files processed: 1", result.stdout)
+        self.assertNotIn(".git/config", result.stdout)
+
 if __name__ == "__main__":
     unittest.main()

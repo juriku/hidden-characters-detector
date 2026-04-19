@@ -31,13 +31,14 @@ IDEOGRAPHIC_VS = chr(0xE0101)
 BOM = '\uFEFF'
 NORMAL_TEXT = "Hello world"
 
-def run_script(args, stdin_data=None):
+def run_script(args, stdin_data=None, cwd=None):
     """
     Runs the hidden-characters-detector.py script with given arguments.
 
     Args:
         args (list): A list of command-line arguments for the script.
         stdin_data (str, optional): String data to pass to the script's stdin.
+        cwd (str | Path, optional): Working directory for the subprocess.
 
     Returns:
         subprocess.CompletedProcess: The result of the script execution.
@@ -49,7 +50,8 @@ def run_script(args, stdin_data=None):
         input=stdin_data,
         capture_output=True,
         text=True,
-        encoding='utf-8' # Ensure consistent encoding for IO
+        encoding='utf-8', # Ensure consistent encoding for IO
+        cwd=str(cwd) if cwd is not None else None,
     )
     return process
 

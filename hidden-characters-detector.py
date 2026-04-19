@@ -22,6 +22,17 @@ except ImportError:
     )
     emoji_library_available = False
 
+try:
+    import pathspec
+    pathspec_library_available = True
+except ImportError:
+    print(
+        "The 'pathspec' library is not installed. .gitignore files will be ignored. "
+        "Install it with 'pip install pathspec' for full functionality.",
+        ImportWarning
+    )
+    pathspec_library_available = False
+
 __all__ = [
     "SimpleLogger",
     "MarkerReport",
@@ -821,6 +832,35 @@ class UnicodeMarkerDetector:
                 )
 
     # --- File Discovery Functions ---
+    @staticmethod
+    def _load_gitignore(dir_path: str):
+        """Load a .gitignore from dir_path and return a compiled PathSpec, or None."""
+        gi_path = os.path.join(dir_path, ".gitignore")
+        if not os.path.isfile(gi_path):
+            return None
+        try:
+            with open(gi_path, "r", encoding="utf-8", errors="replace") as f:
+                return pathspec.PathSpec.from_lines("gitwildmatch", f)
+        except OSError:
+            return None
+
+    @staticmethod
+    def _is_gitignored(path: str, is_dir: bool, stack: List[Tuple[str, "pathspec.PathSpec"]]) -> bool:
+        """Check path against every ancestor .gitignore. Directories match with a trailing slash."""
+        for base, spec in stack:
+            try:
+                rel = os.path.relpath(path, base)
+            except ValueError:
+                continue
+            if rel.startswith(".."):
+                continue
+            rel = rel.replace(os.sep, "/")
+            if is_dir:
+                rel += "/"
+            if spec.match_file(rel):
+                return True
+        return False
+
     def find_files_to_process(
         self,
         file_path: Optional[str] = None,
@@ -829,10 +869,12 @@ class UnicodeMarkerDetector:
         recursive: bool = False,
         ignored_dir_names: Optional[Set[str]] = None,
         file_patterns: Optional[List[str]] = None,
+        use_gitignore: bool = True,
     ) -> List[str]:
         """Return list of candidate text files honoring globs / recursion."""
         files: List[str] = []
         ignored_dir_names = ignored_dir_names or set()
+        gitignore_active = use_gitignore and pathspec_library_available
 
         # Compile file pattern regex if specified
         pattern_re: Optional[re.Pattern[str]] = None
@@ -859,17 +901,65 @@ class UnicodeMarkerDetector:
             if not os.path.isdir(dir_path):
                 self.log.error("Directory '%s' not found.", dir_path)
                 return []
-            self.log.debug("Processing directory: %s (recursive=%s)", dir_path, recursive)
-            walker = os.walk(dir_path) if recursive else [(dir_path, [], os.listdir(dir_path))]
-            for root, dirs, names in walker:
-                # prune ignored dirs when walking recursively
-                if recursive:
-                    dirs[:] = [d for d in dirs if d not in ignored_dir_names]
-                for name in names:
+            self.log.debug("Processing directory: %s (recursive=%s, gitignore=%s)",
+                           dir_path, recursive, gitignore_active)
+
+            # Stack of (abs_dir, PathSpec) from outermost to innermost .gitignore.
+            # For non-recursive mode, only the starting directory's .gitignore applies.
+            gi_stack: List[Tuple[str, "pathspec.PathSpec"]] = []
+            if gitignore_active:
+                root_spec = self._load_gitignore(dir_path)
+                if root_spec is not None:
+                    gi_stack.append((os.path.abspath(dir_path), root_spec))
+
+            if recursive:
+                for root, dirs, names in os.walk(dir_path):
+                    abs_root = os.path.abspath(root)
+
+                    # Pop stack entries no longer ancestors of the current root.
+                    if gitignore_active:
+                        while gi_stack and not (
+                            abs_root == gi_stack[-1][0]
+                            or abs_root.startswith(gi_stack[-1][0] + os.sep)
+                        ):
+                            gi_stack.pop()
+                        # Push this directory's .gitignore if it hasn't been added yet.
+                        if not gi_stack or gi_stack[-1][0] != abs_root:
+                            spec = self._load_gitignore(root)
+                            if spec is not None:
+                                gi_stack.append((abs_root, spec))
+
+                    # prune ignored dirs
+                    dirs[:] = [
+                        d for d in dirs
+                        if d not in ignored_dir_names
+                        and not (
+                            gitignore_active
+                            and self._is_gitignored(os.path.join(abs_root, d), True, gi_stack)
+                        )
+                    ]
+                    for name in names:
+                        if pattern_re and not pattern_re.match(name):
+                            continue
+                        path = os.path.join(root, name)
+                        if gitignore_active and self._is_gitignored(
+                            os.path.abspath(path), False, gi_stack
+                        ):
+                            continue
+                        if os.path.isfile(path) and self._is_likely_text_file(path):
+                            files.append(path)
+            else:
+                for name in os.listdir(dir_path):
                     if pattern_re and not pattern_re.match(name):
                         continue
-                    path = os.path.join(root, name)
-                    if os.path.isfile(path) and self._is_likely_text_file(path):
+                    path = os.path.join(dir_path, name)
+                    if not os.path.isfile(path):
+                        continue
+                    if gitignore_active and self._is_gitignored(
+                        os.path.abspath(path), False, gi_stack
+                    ):
+                        continue
+                    if self._is_likely_text_file(path):
                         files.append(path)
             return files
 
@@ -1006,11 +1096,13 @@ def build_arg_parser() -> argparse.ArgumentParser:
         formatter_class=argparse.RawTextHelpFormatter,
         epilog=f"""
 Examples:
+  %(prog)s                              # Scan current directory recursively
   %(prog)s -f myfile.txt
-  %(prog)s -f myfile.txt --check-typographic --exclude-char U+2013 --no-color
-  %(prog)s -d project/ -r --ignore-dir .git -c -y
-  %(prog)s -d docs/ -r -c --check-typographic --check-ivs
-  %(prog)s -f document.txt --word  # Exclude Word auto-corrections
+  %(prog)s -f myfile.txt --exclude-char U+2013 --no-color
+  %(prog)s -d project/ -c -y            # Clean with auto-confirm
+  %(prog)s -d docs/ --no-check-typographic --no-check-ivs  # Hidden markers only
+  %(prog)s -f document.txt --word       # Exclude Word auto-corrections
+  %(prog)s --no-recursive -d .          # Top-level only
 
 Detected by Default:
   - Hidden Markers: Removed by -c.
@@ -1034,17 +1126,22 @@ Output Coloring: Use --no-color to disable. Respects NO_COLOR env var.
 """
     )
 
-    input_group = parser.add_mutually_exclusive_group(required=True)
+    input_group = parser.add_mutually_exclusive_group()
     input_group.add_argument("-f", "--file", help="Path to a single file to check.")
-    input_group.add_argument("-d", "--dir", help="Path to a directory to check.")
+    input_group.add_argument("-d", "--dir", nargs="?", const=".",
+                             help="Path to a directory to check. Defaults to '.' if flag is given without a value, or if no input is specified.")
     input_group.add_argument("--stdin", action="store_true", help="Read from standard input.")
 
-    parser.add_argument("-r", "--recursive", action="store_true",
-                      help="Recursively search in subdirectories (used with -d/--dir).")
+    parser.add_argument("-r", "--recursive", action=argparse.BooleanOptionalAction,
+                      default=True,
+                      help="Recursively search in subdirectories (used with -d/--dir). Default: on; use --no-recursive to disable.")
 
     parser.add_argument("--ignore-dir", action="append", dest="ignored_dirs",
-                      default=[], metavar="DIRNAME",
-                      help="Directory name(s) to ignore during recursive scan (e.g., .git). Can be used multiple times.")
+                      default=[".git"], metavar="DIRNAME",
+                      help="Directory name(s) to ignore during recursive scan. '.git' is ignored by default; pass this flag to add more.")
+
+    parser.add_argument("--no-gitignore", action="store_true",
+                      help="Disable honoring .gitignore files found in the scanned directories.")
 
     parser.add_argument("--pattern", action="append", dest="file_patterns",
                       default=[], metavar="PATTERN",
@@ -1066,11 +1163,13 @@ Output Coloring: Use --no-color to disable. Respects NO_COLOR env var.
     parser.add_argument("--fail", action="store_true",
                       help="Exit with status code 1 if any specified markers are detected/changed.")
 
-    parser.add_argument("--check-typographic", action="store_true",
-                      help="Enable the check for specified typographic markers (disabled by default).")
+    parser.add_argument("--check-typographic", action=argparse.BooleanOptionalAction,
+                      default=True,
+                      help="Check for typographic markers (smart quotes, em dashes, homoglyphs, etc.). Default: on; use --no-check-typographic to disable.")
 
-    parser.add_argument("--check-ivs", action="store_true",
-                      help="Enable the check for Ideographic Variation Selectors (VS17-VS256).")
+    parser.add_argument("--check-ivs", action=argparse.BooleanOptionalAction,
+                      default=True,
+                      help="Check for Ideographic Variation Selectors (VS17-VS256). Default: on; use --no-check-ivs to disable.")
 
     parser.add_argument("--no-color", action="store_true",
                       help="Disable colored output.")
@@ -1141,12 +1240,17 @@ def main(argv: Optional[List[str]] = None) -> None:  # noqa: C901 (long, but str
             log.error("Error reading from stdin: %s", e)
             raise SystemExit(1) from e
     else:
+        dir_path = args.dir
+        if not args.file and not args.dir:
+            dir_path = "."
+            log.debug("No input specified, defaulting to current directory.")
         files_to_process = detector.find_files_to_process(
             file_path=args.file,
-            dir_path=args.dir,
+            dir_path=dir_path,
             recursive=args.recursive,
             ignored_dir_names=set(args.ignored_dirs),
             file_patterns=args.file_patterns,
+            use_gitignore=not args.no_gitignore,
         )
         original_stdin_tmp = None
 
