@@ -452,7 +452,7 @@ class SimpleLogger:
     def __init__(
         self,
         level: int = INFO,
-        use_colors: bool | None = None,
+        use_colors: Optional[bool] = None,
         log_file: Optional[str] = None,
     ) -> None:
         self.level = level
