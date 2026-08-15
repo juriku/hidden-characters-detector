@@ -19,9 +19,18 @@ if not SCRIPT_PATH.exists():
 # os.chmod(SCRIPT_PATH, 0o755)
 
 
+# run_script uses sys.executable, so the script under test sees this same import.
+try:
+    import pathspec  # noqa: F401
+    PATHSPEC_AVAILABLE = True
+except ImportError:
+    PATHSPEC_AVAILABLE = False
+
 # Marker constants for convenience
 ZERO_WIDTH_SPACE = '\u200B'
 NON_BREAKING_SPACE = '\u00A0'
+THIN_SPACE = '\u2009'
+IDEOGRAPHIC_SPACE = '\u3000'
 EM_DASH = '\u2014'
 LEFT_DOUBLE_QUOTE = '\u201C'
 RIGHT_DOUBLE_QUOTE = '\u201D'

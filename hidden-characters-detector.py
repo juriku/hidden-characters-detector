@@ -18,7 +18,7 @@ except ImportError:
     print(
         "The 'emoji' library is not installed. Emoji-specific checks will be skipped. "
         "Install it with 'pip install emoji' for full functionality.",
-        ImportWarning
+        file=sys.stderr
     )
     emoji_library_available = False
 
@@ -29,7 +29,7 @@ except ImportError:
     print(
         "The 'pathspec' library is not installed. .gitignore files will be ignored. "
         "Install it with 'pip install pathspec' for full functionality.",
-        ImportWarning
+        file=sys.stderr
     )
     pathspec_library_available = False
 
@@ -43,6 +43,29 @@ __all__ = [
 
 # --- Configuration ---
 VERSION = "1.2.0"
+
+DEFAULT_IGNORED_DIRS: Set[str] = {
+    # Version control
+    ".git", ".hg", ".svn",
+
+    # JavaScript / TypeScript
+    "node_modules", "bower_components", "jspm_packages", ".pnpm-store", ".yarn",
+    ".next", ".nuxt", ".svelte-kit", ".angular", ".astro",
+    ".parcel-cache", ".turbo", ".vite",
+
+    # Python
+    "__pycache__", ".venv", "venv", ".tox", ".nox", ".eggs",
+    ".mypy_cache", ".pytest_cache", ".ruff_cache", ".pytype",
+
+    # Other ecosystems
+    ".gradle", ".dart_tool", ".bundle", "Pods",
+
+    # Infrastructure
+    ".terraform", ".serverless",
+
+    # Caches and coverage output
+    ".cache", ".sass-cache", ".nyc_output", "htmlcov",
+}
 
 # --- Marker Definitions ---
 # Define common hidden characters often used for watermarking or causing issues
@@ -454,10 +477,12 @@ class SimpleLogger:
         level: int = INFO,
         use_colors: Optional[bool] = None,
         log_file: Optional[str] = None,
+        stream=None,
     ) -> None:
         self.level = level
+        self.stream = stream if stream is not None else sys.stdout
         self.use_colors = (
-            sys.stdout.isatty() and os.environ.get("NO_COLOR") is None
+            self.stream.isatty() and os.environ.get("NO_COLOR") is None
             if use_colors is None
             else bool(use_colors)
         )
@@ -478,8 +503,7 @@ class SimpleLogger:
         if self.use_colors and color and color in self.COLORS:
             msg = f"{self.COLORS[color]}{msg}{self.COLORS['reset']}"
 
-        # Write to stdout
-        print(msg)
+        print(msg, file=self.stream)
 
         # Write to file if configured (without colors)
         if self.file_handler:
@@ -672,26 +696,25 @@ class UnicodeMarkerDetector:
             replacement: Optional[str] = None
             report: Optional[MarkerReport] = None
 
-            ## \uFE0F holds key mechanism for ensuring that common symbols are rendered as the popular emoji graphics
-            if ch == '\uFE0F':
-                if idx > 0:
-                    if emoji_library_available:
-                        sequence_to_check = text[idx-1:idx+1] # The potential emoji sequence
-                        if emoji.is_emoji(sequence_to_check):
-                            print(f"Emoji detected: {sequence_to_check} at index {idx} in line {line_num}")
-                            continue
+            # U+FE0F after a base symbol requests its emoji presentation, so it is not a stray marker there.
+            if ch == '\uFE0F' and idx > 0 and emoji_library_available:
+                if emoji.is_emoji(text[idx - 1:idx + 1]):
+                    continue
 
             # Check for hidden markers
             if ch in MARKER_CHARS_HIDDEN:
                 is_bom = line_num == 1 and idx == 0 and ch == '\uFEFF'
                 desc = HIDDEN_MARKERS[ch]
                 if not (is_bom and not self.clean_file):
-                    action = "Processed (BOM)" if is_bom and self.clean_file else (
-                        "Removed" if self.clean_file else "Detected"
-                    )
-                    replacement = "" if self.clean_file else None
-                    changed |= bool(replacement == "")
-                    report = MarkerReport(idx, ch, desc, "Hidden", action)
+                    if self.clean_file:
+                        replacement = TYPOGRAPHIC_REPLACEMENTS.get(ch, "")
+                        action = "Processed (BOM)" if is_bom else (
+                            "Removed" if replacement == "" else "Replaced"
+                        )
+                    else:
+                        action = "Detected"
+                    changed |= replacement is not None and replacement != ch
+                    report = MarkerReport(idx, ch, desc, "Hidden", action, replacement)
 
             # Check for ideographic variation selectors
             elif self.check_ivs and ch in MARKER_CHARS_IDEOGRAPHIC_VS:
@@ -732,7 +755,7 @@ class UnicodeMarkerDetector:
                 try:
                     temp_obj = tempfile.NamedTemporaryFile(
                         mode='w',
-                        encoding='utf-8',
+                        encoding=encoding,
                         delete=False,
                         dir=os.path.dirname(filepath) or ".",
                         prefix=f"tmp_{os.path.basename(filepath)}_",
@@ -748,7 +771,9 @@ class UnicodeMarkerDetector:
                 out_f = None
 
             line_reports: Dict[int, Tuple[str, str, List[MarkerReport]]] = {}
-            with open(filepath, 'r', encoding=encoding, errors='replace') as in_f:
+            # Cleaning rewrites the file, so an undecodable byte must abort rather than become U+FFFD.
+            read_errors = 'strict' if self.clean_file else 'replace'
+            with open(filepath, 'r', encoding=encoding, errors=read_errors) as in_f:
                 for i, line in enumerate(in_f, start=1):
                     new_line, reports, changed = self._process_line(line, i)
                     if reports:
@@ -789,6 +814,17 @@ class UnicodeMarkerDetector:
                 processed_markers=processed,
             )
 
+        except UnicodeDecodeError as e_decode:
+            if temp_path and os.path.exists(temp_path):
+                try:
+                    os.remove(temp_path)
+                except OSError:
+                    pass
+            self.log.error(
+                "Could not decode %s as %s; skipped to avoid corrupting it: %s",
+                filepath, encoding, e_decode,
+            )
+            return FileProcessResult(filepath, False, None, f"Decode error: {e_decode}")
         except FileNotFoundError:
             self.log.error("File not found: %s", filepath)
             return FileProcessResult(filepath, False, None, "File not found")
@@ -1089,6 +1125,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
     ivs_example_start_char, ivs_example_start_desc = list(IDEOGRAPHIC_VS_MARKERS.items())[0] if IDEOGRAPHIC_VS_MARKERS else ("U+E0100", "IVS-17")
     ivs_example_end_char, ivs_example_end_desc = list(IDEOGRAPHIC_VS_MARKERS.items())[-1] if IDEOGRAPHIC_VS_MARKERS else ("U+E01EF", "IVS-256")
     word_chars_examples = "\n".join([f"  '{ch}' : {desc}" for ch, desc in enumerate(itertools.islice(WORD_COMMON_CHARS, 10))])
+    default_ignored_examples = ", ".join(sorted(DEFAULT_IGNORED_DIRS))
 
 
     parser = argparse.ArgumentParser(
@@ -1115,6 +1152,10 @@ Optional Checks:
     Example Range: '{ivs_example_start_char}' ({ivs_example_start_desc}) to '{ivs_example_end_char}' ({ivs_example_end_desc})
     IVS are REMOVED if --clean and --check-ivs are active.
 
+Directories Skipped by Default (recursive scans):
+  {default_ignored_examples}
+  Add more with --ignore-dir; descend into them with --no-default-ignores.
+
 Word Common Characters (excluded with --word):
 {word_chars_examples}
 
@@ -1137,8 +1178,11 @@ Output Coloring: Use --no-color to disable. Respects NO_COLOR env var.
                       help="Recursively search in subdirectories (used with -d/--dir). Default: on; use --no-recursive to disable.")
 
     parser.add_argument("--ignore-dir", action="append", dest="ignored_dirs",
-                      default=[".git"], metavar="DIRNAME",
-                      help="Directory name(s) to ignore during recursive scan. '.git' is ignored by default; pass this flag to add more.")
+                      default=[], metavar="DIRNAME",
+                      help="Additional directory name(s) to ignore during recursive scan. Repeatable.\nAdds to the built-in list; it does not replace it.")
+
+    parser.add_argument("--no-default-ignores", action="store_true",
+                      help="Descend into the built-in dependency/cache directories\n(node_modules, __pycache__, .venv, .terraform, etc.). '.git' is still skipped.")
 
     parser.add_argument("--no-gitignore", action="store_true",
                       help="Disable honoring .gitignore files found in the scanned directories.")
@@ -1202,10 +1246,13 @@ def main(argv: Optional[List[str]] = None) -> None:  # noqa: C901 (long, but str
         "WARNING": SimpleLogger.WARNING,
         "ERROR": SimpleLogger.ERROR,
     }
+    # In --stdin mode stdout carries the cleaned document, so diagnostics must not share it.
+    log_stream = sys.stderr if args.stdin else sys.stdout
     log = SimpleLogger(
         level=log_levels[args.log_level],
-        use_colors=sys.stdout.isatty() and not args.no_color and os.environ.get("NO_COLOR") is None,
+        use_colors=log_stream.isatty() and not args.no_color and os.environ.get("NO_COLOR") is None,
         log_file=args.log_file,
+        stream=log_stream,
     )
 
     log.debug("Unicode Marker Detector v%s starting", VERSION)
@@ -1244,11 +1291,19 @@ def main(argv: Optional[List[str]] = None) -> None:  # noqa: C901 (long, but str
         if not args.file and not args.dir:
             dir_path = "."
             log.debug("No input specified, defaulting to current directory.")
+
+        ignored_dir_names = set(args.ignored_dirs)
+        if not args.no_default_ignores:
+            ignored_dir_names |= DEFAULT_IGNORED_DIRS
+        ignored_dir_names.add(".git")
+        log.debug("Ignoring %d directory name(s): %s",
+                  len(ignored_dir_names), ", ".join(sorted(ignored_dir_names)))
+
         files_to_process = detector.find_files_to_process(
             file_path=args.file,
             dir_path=dir_path,
             recursive=args.recursive,
-            ignored_dir_names=set(args.ignored_dirs),
+            ignored_dir_names=ignored_dir_names,
             file_patterns=args.file_patterns,
             use_gitignore=not args.no_gitignore,
         )
@@ -1262,21 +1317,16 @@ def main(argv: Optional[List[str]] = None) -> None:  # noqa: C901 (long, but str
     stats = detector.scan(files_to_process)
 
 
-    # --- Cleanup for stdin mode ---
+    changed_paths = detector.cleaned_temp_paths()
+
     if args.stdin:
-        tmp_map = detector.cleaned_temp_paths()
-        if args.clean and original_stdin_tmp and original_stdin_tmp in tmp_map:
+        if args.clean and original_stdin_tmp and original_stdin_tmp in changed_paths:
             log.debug("Processing cleaned stdin content")
-            with open(tmp_map[original_stdin_tmp], "r", encoding="utf-8") as f:
+            with open(changed_paths[original_stdin_tmp], "r", encoding="utf-8") as f:
                 sys.stdout.write(f.read())
-            os.remove(tmp_map[original_stdin_tmp])
-        # always remove the input tmp
         if original_stdin_tmp and os.path.exists(original_stdin_tmp):
             os.remove(original_stdin_tmp)
-
-    # --- Confirmation and commit phase ---
-    changed_paths = detector.cleaned_temp_paths()
-    if args.clean and changed_paths:
+    elif args.clean and changed_paths:
         log.warning("\nModifications prepared for %d file(s).", len(changed_paths))
         proceed = args.auto_confirm_clean
         if not proceed:

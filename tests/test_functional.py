@@ -9,7 +9,7 @@ from test_utils import (
     run_script, create_temp_file, read_file_content,
     ZERO_WIDTH_SPACE, NON_BREAKING_SPACE, EM_DASH, LEFT_DOUBLE_QUOTE,
     RIGHT_DOUBLE_QUOTE, HYPHEN_MINUS, STRAIGHT_DOUBLE_QUOTE, IDEOGRAPHIC_VS,
-    BOM, NORMAL_TEXT
+    BOM, NORMAL_TEXT, THIN_SPACE, IDEOGRAPHIC_SPACE, PATHSPEC_AVAILABLE
 )
 
 class TestFunctional(unittest.TestCase):
@@ -167,18 +167,26 @@ class TestFunctional(unittest.TestCase):
         stdin_content = f"Input via stdin {ZERO_WIDTH_SPACE} invisible"
         result = run_script(["--stdin"], stdin_data=stdin_content)
         self.assertEqual(result.returncode, 0)
-        self.assertIn("Zero Width Space", result.stdout)
-        self.assertIn("Detected", result.stdout)
-        self.assertIn("MARKERS FOUND", result.stdout)
+        self.assertEqual(result.stdout, "")
+        self.assertIn("Zero Width Space", result.stderr)
+        self.assertIn("Detected", result.stderr)
+        self.assertIn("MARKERS FOUND", result.stderr)
 
     def test_stdin_cleaning(self):
         stdin_content = f"Input {LEFT_DOUBLE_QUOTE}quotes{RIGHT_DOUBLE_QUOTE}"
         expected_cleaned_output = f"Input {STRAIGHT_DOUBLE_QUOTE}quotes{STRAIGHT_DOUBLE_QUOTE}"
         result = run_script(["--stdin", "-c", "-y", "--check-typographic"], stdin_data=stdin_content)
         self.assertEqual(result.returncode, 0)
-        self.assertIn(expected_cleaned_output, result.stdout)
-        self.assertIn("Replaced", result.stdout)
-        self.assertIn("Left Double Quotation Mark", result.stdout)
+        self.assertEqual(result.stdout, expected_cleaned_output)
+        self.assertIn("Replaced", result.stderr)
+        self.assertIn("Left Double Quotation Mark", result.stderr)
+
+    def test_stdin_cleaning_reports_no_commit_error(self):
+        stdin_content = f"Input {LEFT_DOUBLE_QUOTE}quotes{RIGHT_DOUBLE_QUOTE}"
+        result = run_script(["--stdin", "-c", "-y"], stdin_data=stdin_content)
+        self.assertEqual(result.returncode, 0)
+        self.assertNotIn("Error committing", result.stderr)
+        self.assertNotIn("error(s)", result.stderr)
 
 
     def test_exclude_char_uxxxx(self):
@@ -213,6 +221,7 @@ class TestFunctional(unittest.TestCase):
         self.assertIn("hidden-characters-detector.py 1.2.0", result.stdout) # Adjust to actual script name in output
 
 
+@unittest.skipUnless(PATHSPEC_AVAILABLE, "pathspec is not installed; .gitignore support is disabled")
 class TestGitignore(unittest.TestCase):
 
     def setUp(self):
@@ -408,6 +417,116 @@ class TestDefaultFlags(unittest.TestCase):
         self.assertEqual(result.returncode, 0)
         self.assertIn("Files processed: 1", result.stdout)
         self.assertNotIn(".git/config", result.stdout)
+
+class TestDefaultIgnoredDirs(unittest.TestCase):
+
+    def setUp(self):
+        self.test_dir = tempfile.mkdtemp(prefix="um_ignoredirs_")
+        self.root = Path(self.test_dir) / "proj"
+        self.root.mkdir()
+        create_temp_file(self.root, "src.txt", f"Src{ZERO_WIDTH_SPACE}")
+
+    def tearDown(self):
+        shutil.rmtree(self.test_dir)
+
+    def _make_dir_with_marker(self, name):
+        target = self.root / name
+        target.mkdir()
+        create_temp_file(target, "dep.txt", f"Dep{ZERO_WIDTH_SPACE}")
+        return target
+
+    def test_node_modules_ignored_by_default(self):
+        self._make_dir_with_marker("node_modules")
+        result = run_script(["-d", str(self.root), "--no-gitignore"])
+        self.assertEqual(result.returncode, 0)
+        self.assertIn("Files processed: 1", result.stdout)
+        self.assertNotIn("node_modules", result.stdout)
+
+    def test_cache_dirs_ignored_by_default(self):
+        for name in ("__pycache__", ".venv", ".terraform", ".pytest_cache"):
+            self._make_dir_with_marker(name)
+        result = run_script(["-d", str(self.root), "--no-gitignore"])
+        self.assertEqual(result.returncode, 0)
+        self.assertIn("Files processed: 1", result.stdout)
+
+    def test_no_default_ignores_descends_into_them(self):
+        self._make_dir_with_marker("node_modules")
+        result = run_script(["-d", str(self.root), "--no-gitignore", "--no-default-ignores"])
+        self.assertEqual(result.returncode, 0)
+        self.assertIn("Files processed: 2", result.stdout)
+        self.assertIn("node_modules", result.stdout)
+
+    def test_git_still_ignored_with_no_default_ignores(self):
+        self._make_dir_with_marker(".git")
+        result = run_script(["-d", str(self.root), "--no-gitignore", "--no-default-ignores"])
+        self.assertEqual(result.returncode, 0)
+        self.assertIn("Files processed: 1", result.stdout)
+
+    def test_ignore_dir_adds_to_defaults_rather_than_replacing(self):
+        self._make_dir_with_marker("node_modules")
+        self._make_dir_with_marker("custom_dir")
+        result = run_script(["-d", str(self.root), "--no-gitignore", "--ignore-dir", "custom_dir"])
+        self.assertEqual(result.returncode, 0)
+        self.assertIn("Files processed: 1", result.stdout)
+
+    def test_ambiguous_build_dirs_are_still_scanned(self):
+        for name in ("dist", "build", "target", "vendor"):
+            self._make_dir_with_marker(name)
+        result = run_script(["-d", str(self.root), "--no-gitignore"])
+        self.assertEqual(result.returncode, 0)
+        self.assertIn("Files processed: 5", result.stdout)
+
+
+class TestCleaningFidelity(unittest.TestCase):
+    """Cleaning must preserve word boundaries and the file's original encoding."""
+
+    def setUp(self):
+        self.test_dir = tempfile.mkdtemp(prefix="um_fidelity_")
+
+    def tearDown(self):
+        shutil.rmtree(self.test_dir)
+
+    def test_nbsp_becomes_space_not_deleted(self):
+        test_file = create_temp_file(self.test_dir, "nbsp.txt", f"two{NON_BREAKING_SPACE}words")
+        result = run_script(["-f", str(test_file), "-c", "-y"])
+        self.assertEqual(result.returncode, 0)
+        self.assertEqual(read_file_content(test_file), "two words")
+
+    def test_exotic_spaces_become_regular_spaces(self):
+        content = f"a{THIN_SPACE}b{IDEOGRAPHIC_SPACE}c"
+        test_file = create_temp_file(self.test_dir, "spaces.txt", content)
+        result = run_script(["-f", str(test_file), "-c", "-y"])
+        self.assertEqual(result.returncode, 0)
+        self.assertEqual(read_file_content(test_file), "a b c")
+
+    def test_zero_width_characters_are_still_removed(self):
+        test_file = create_temp_file(self.test_dir, "zwsp.txt", f"one{ZERO_WIDTH_SPACE}word")
+        result = run_script(["-f", str(test_file), "-c", "-y"])
+        self.assertEqual(result.returncode, 0)
+        self.assertEqual(read_file_content(test_file), "oneword")
+
+    def test_latin1_file_is_not_transcoded(self):
+        # Padded with ASCII: the binary-file heuristic needs >75% printable bytes.
+        test_file = Path(self.test_dir) / "latin.txt"
+        test_file.write_bytes(f"café{NON_BREAKING_SPACE}bar and some ascii padding".encode("latin-1"))
+
+        result = run_script(["-f", str(test_file), "-c", "-y"])
+
+        self.assertEqual(result.returncode, 0)
+        self.assertEqual(test_file.read_bytes(), "café bar and some ascii padding".encode("latin-1"))
+
+    def test_undecodable_file_is_skipped_not_corrupted(self):
+        # Encoding detection only reads the file's head, so the bad byte must sit
+        # past the read buffer to survive detection.
+        test_file = Path(self.test_dir) / "broken.txt"
+        original = b"a" * 16384 + b"\xff" + f"{ZERO_WIDTH_SPACE}".encode("utf-8")
+        test_file.write_bytes(original)
+
+        result = run_script(["-f", str(test_file), "-c", "-y"])
+
+        self.assertIn("skipped to avoid corrupting it", result.stdout)
+        self.assertEqual(test_file.read_bytes(), original)
+
 
 if __name__ == "__main__":
     unittest.main()
