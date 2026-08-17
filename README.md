@@ -20,14 +20,10 @@
 > - Fixes the data-corruption bugs this tool shipped with: non-breaking spaces
 >   are normalised rather than deleted, file encodings are preserved, and piped
 >   output is no longer mixed with diagnostics.
->
-> The hosted version at ai-detect.devbox.buzz is being retired along with it.
 
 A Python utility for detecting and cleaning hidden Unicode markers, invisible characters, typographic markers, and other special characters that may be used as watermarks or cause issues in text files.
 
 **Version:** 1.2.0
-
-## website version: [ai-detect.devbox.buzz](https://ai-detect.devbox.buzz)
 
 ## What It Does
 
