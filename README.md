@@ -1,5 +1,28 @@
 # Hidden Characers Unicode Marker Detector
 
+> ## Deprecated: use [untrace](https://github.com/juriku/untrace) instead
+>
+> This project is no longer maintained. It has been replaced by
+> **[untrace](https://github.com/juriku/untrace)**, a Go rewrite that does
+> everything this tool does and more:
+>
+> - A single static binary, installable with Homebrew, a pre-commit hook, a git
+>   clean filter or a VS Code extension. No Python environment to set up.
+> - **Context-aware.** A Word document keeps its em dashes and curly quotes; a
+>   Python file does not. Emoji joiners, Persian joiners, CJK variation
+>   selectors and camera-signed credentials are recognised as legitimate rather
+>   than reported as attacks.
+> - **Decodes hidden payloads**, so it reports the string a file is hiding, not
+>   just that invisible characters are present. Covers zero-width binary,
+>   variation-selector smuggling and the Unicode Tags block.
+> - **Reads AI provenance metadata**, including C2PA Content Credentials, EXIF,
+>   PDF and Office document properties.
+> - Fixes the data-corruption bugs this tool shipped with: non-breaking spaces
+>   are normalised rather than deleted, file encodings are preserved, and piped
+>   output is no longer mixed with diagnostics.
+>
+> The hosted version at ai-detect.devbox.buzz is being retired along with it.
+
 A Python utility for detecting and cleaning hidden Unicode markers, invisible characters, typographic markers, and other special characters that may be used as watermarks or cause issues in text files.
 
 **Version:** 1.2.0
